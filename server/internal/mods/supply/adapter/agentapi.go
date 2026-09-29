@@ -78,7 +78,7 @@ func (a *agentAPIAdapter) Ping(ctx context.Context) (*PingResult, error) {
 		}
 	}
 	currency := agentStringField(root, "currency", "balance_currency")
-	name := agentStringField(root, "site_name", "site", "agent_name", "name")
+	name := agentStringField(root, "site_name", "site", "agent_name", "agent", "name")
 	if name == "" {
 		name = "Agent API"
 	}
@@ -322,7 +322,7 @@ func decodeAgentJSON(raw []byte) (any, error) {
 func agentProducts(root any) ([]Product, error) {
 	container, ok := findAgentPlanContainer(root, 0)
 	if !ok {
-		return nil, errors.New("adapter.agentapi: /balance 响应未找到可售套餐字段（支持 plans/available_plans/available_packages/packages/products/items 等）")
+		return nil, errors.New("adapter.agentapi: /balance 响应未找到可售套餐字段（支持 prices/plans/available_plans/available_packages/packages/products/items 等）")
 	}
 	out := make([]Product, 0)
 	switch v := container.(type) {
@@ -355,7 +355,7 @@ func findAgentPlanContainer(v any, depth int) (any, bool) {
 	if !ok {
 		return nil, false
 	}
-	for _, key := range []string{"plans", "available_plans", "available_packages", "sellable_plans", "plan_list", "packages", "products", "items"} {
+	for _, key := range []string{"prices", "plans", "available_plans", "available_packages", "sellable_plans", "plan_list", "packages", "products", "items"} {
 		if x, exists := m[key]; exists {
 			switch x.(type) {
 			case []any, map[string]any:
