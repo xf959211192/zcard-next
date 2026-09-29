@@ -40,6 +40,7 @@ const driverMeta: Record<string, { label: string; tag: "success" | "info" | "war
   zcard: { label: "ZCard", tag: "success" },
   dujiao_next: { label: "独角数卡", tag: "info" },
   acg_faka: { label: "异次元", tag: "warning" },
+  agent_api: { label: "代理 API", tag: "info" },
 };
 
 const canWrite = () => checkAuth("supply:write");
@@ -146,6 +147,10 @@ const credFields = computed(() => {
       return [
         { key: "app_id", label: "商户ID（app_id）" },
         { key: "app_key", label: "对接密钥（app_key）" },
+      ];
+    case "agent_api":
+      return [
+        { key: "api_key", label: "Agent API Key" },
       ];
     default:
       return [
@@ -793,11 +798,12 @@ onMounted(load);
               { label: 'ZCard（自有协议）', value: 'zcard' },
               { label: '独角数卡 dujiao-next', value: 'dujiao_next' },
               { label: '异次元 acg-faka', value: 'acg_faka' },
+              { label: '代理 API（X-Agent-Key）', value: 'agent_api' },
             ]"
           />
         </NFormItem>
         <NFormItem label="上游地址" required>
-          <NInput v-model:value="form.base_url" placeholder="https://up.example.com" />
+          <NInput v-model:value="form.base_url" :placeholder="form.driver === 'agent_api' ? 'https://chong.yy-66.com/api/open/agent/v1' : 'https://up.example.com'" />
         </NFormItem>
         <NFormItem v-for="f in credFields" :key="f.key" :label="f.label" :required="editingId === 0">
           <NInput v-model:value="credDraft[f.key]" :placeholder="editingId ? '留空 = 不修改' : ''" />

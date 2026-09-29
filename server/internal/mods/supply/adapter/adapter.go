@@ -1,7 +1,8 @@
 // Package adapter 货源协议适配器（）。
 //
-// 三协议：zcard（自家 Supply v2，4 头 HMAC）/ dujiao_next（3 头 HMAC）/
-// acg_faka（body 内 MD5 签名）。协议知识迁移自 1.x app/Supply/Drivers/CLAUDE.md
+// 四协议：zcard（自家 Supply v2，4 头 HMAC）/ dujiao_next（3 头 HMAC）/
+// acg_faka（body 内 MD5 签名）/ agent_api（X-Agent-Key + Idempotency-Key）。
+// 既有协议知识迁移自 1.x app/Supply/Drivers/CLAUDE.md
 // 与 dujiao-next internal/upstream（signer 签名串、IncludesInactive 回声字段）。
 //
 // 纪律：
@@ -155,7 +156,7 @@ type ImportPreviewer interface {
 
 // Adapter 货源适配器接口（port 契约， / 消费方）。
 type Adapter interface {
-	// Protocol 返回协议名（zcard | dujiao_next | acg_faka）。
+	// Protocol 返回协议名（zcard | dujiao_next | acg_faka | agent_api）。
 	Protocol() string
 
 	// Ping 连通性探测。
@@ -195,6 +196,8 @@ func New(driver, baseURL string, creds Credentials, retryIntervals []int) (Adapt
 		return newDujiaoNext(baseURL, creds, retryIntervals)
 	case "acg_faka":
 		return newAcgFaka(baseURL, creds, retryIntervals)
+	case "agent_api":
+		return newAgentAPI(baseURL, creds, retryIntervals)
 	default:
 		return nil, fmt.Errorf("adapter: 不支持的驱动 %q", driver)
 	}
