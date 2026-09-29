@@ -286,8 +286,11 @@ func agentHTTPError(err error) error {
 }
 
 func classifyAgentBusinessError(status int, code, message string) error {
+	codeNorm := strings.ToLower(strings.TrimSpace(code))
 	s := strings.ToLower(strings.TrimSpace(code + " " + message))
 	switch {
+	case codeNorm == "plan_not_found" || codeNorm == "invalid_plan" || codeNorm == "plan_unavailable":
+		return ErrProductUnavailable
 	case status == http.StatusConflict || strings.Contains(s, "idempot") || strings.Contains(s, "幂等"):
 		return ErrDuplicateSubmit
 	case strings.Contains(s, "balance") || strings.Contains(s, "余额"):
