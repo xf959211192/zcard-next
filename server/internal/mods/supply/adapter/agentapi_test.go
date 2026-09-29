@@ -179,3 +179,26 @@ func TestAgentAPIRealBalancePricesShape(t *testing.T) {
 		t.Fatalf("last plan=%+v", plans[7])
 	}
 }
+
+
+func TestAgentAPIPlanNotFoundResponse(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"ok":false,"code":"plan_not_found","msg":"所选会员档不存在，请刷新后重新选择"}`))
+	}))
+	defer srv.Close()
+
+	a := &agentAPIAdapter{
+		protocol: "agent_api",
+		creds:    Credentials{APIKey: "ak_test"},
+		t:        newTransportWithClient(srv.URL, nil, nil, srv.Client()),
+	}
+	_, err := a.CreateOrder(context.Background(), CreateOrderReq{
+		ProductCode:       "__not_exist_test__",
+		Quantity:          1,
+		DownstreamOrderNo: "dedupe-12345678",
+	})
+	if !errors.Is(err, ErrProductUnavailable) {
+		t.Fatalf("want ErrProductUnavailable, got %v", err)
+	}
+}
