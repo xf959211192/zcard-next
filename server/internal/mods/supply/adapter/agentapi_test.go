@@ -140,3 +140,42 @@ func TestAgentAPIWrappedPlanMap(t *testing.T) {
 		t.Fatalf("pro=%+v", byCode["pro"])
 	}
 }
+
+
+func TestAgentAPIRealBalancePricesShape(t *testing.T) {
+	root, err := decodeAgentJSON([]byte(`{
+		"data": {
+			"currency": "CNY",
+			"prices": [
+				{"plan_code":"go","label":"Go","price":35.0},
+				{"plan_code":"plus","label":"Plus","price":109.0},
+				{"plan_code":"prolite","label":"Pro Lite","price":640.0},
+				{"plan_code":"credit250","label":"额度 250","price":72.0},
+				{"plan_code":"credit500","label":"额度 500","price":145.0},
+				{"plan_code":"credit1000","label":"额度 1000","price":268.0},
+				{"plan_code":"pro","label":"Pro","price":1000.0},
+				{"plan_code":"pro5x","label":"智利 Pro 5X","price":628.0}
+			],
+			"agent": "test-agent",
+			"balance": 0.0
+		},
+		"code":"ok",
+		"ok":true
+	}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	plans, err := agentProducts(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plans) != 8 {
+		t.Fatalf("want 8 plans, got %d: %+v", len(plans), plans)
+	}
+	if plans[0].ID != "go" || plans[0].Name != "Go" || plans[0].Price != 3500 || plans[0].FactoryPrice != 3500 {
+		t.Fatalf("first plan=%+v", plans[0])
+	}
+	if plans[7].ID != "pro5x" || plans[7].Name != "智利 Pro 5X" || plans[7].Price != 62800 {
+		t.Fatalf("last plan=%+v", plans[7])
+	}
+}
