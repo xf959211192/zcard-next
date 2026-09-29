@@ -62,6 +62,13 @@ let previewRequest = 0;
 const quoteRequests = new Set<AbortController>();
 const importing = ref(false);
 let submission = { signature: "", key: "" };
+
+function createRequestKey(): string {
+  const c = globalThis.crypto;
+  if (c && typeof c.randomUUID === "function") return c.randomUUID();
+  return `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+}
+
 const categories = ref<PreviewCategory[]>([]);
 const localCategories = ref<any[]>([]);
 const checked = ref<string[]>([]);
@@ -375,7 +382,7 @@ async function submit() {
     if (pricing.mode === "percent") payload.markup_percent = pricing.markupPercent;
     if (pricing.mode === "fixed") payload.markup_amount_cents = yuanToFen(pricing.markupAmountYuan);
     const signature = JSON.stringify(payload);
-    if (signature !== submission.signature) submission = { signature, key: crypto.randomUUID() };
+    if (signature !== submission.signature) submission = { signature, key: createRequestKey() };
     payload.request_key = submission.key;
     const { data, error } = await importSupplyProducts(props.connection.id, payload as any);
     if (error) {
@@ -392,8 +399,12 @@ async function submit() {
         emit("task-created", Number(task.id));
         emit("update:show", false);
         window.$message?.success("导入任务已创建，可以关闭页面，后台会继续处理");
+      } else {
+        submitError.value = "提交成功但未返回导入任务 ID，请检查服务端响应";
       }
     }
+  } catch (err) {
+    submitError.value = err instanceof Error ? `提交失败：${err.message}` : "提交失败：前端发生未知错误";
   } finally {
     importing.value = false;
   }
