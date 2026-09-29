@@ -322,7 +322,7 @@ func decodeAgentJSON(raw []byte) (any, error) {
 func agentProducts(root any) ([]Product, error) {
 	container, ok := findAgentPlanContainer(root, 0)
 	if !ok {
-		return nil, errors.New("adapter.agentapi: /balance 响应未找到可售套餐字段（支持 plans/available_plans/packages/products/items）")
+		return nil, errors.New("adapter.agentapi: /balance 响应未找到可售套餐字段（支持 plans/available_plans/available_packages/packages/products/items 等）")
 	}
 	out := make([]Product, 0)
 	switch v := container.(type) {
@@ -355,7 +355,7 @@ func findAgentPlanContainer(v any, depth int) (any, bool) {
 	if !ok {
 		return nil, false
 	}
-	for _, key := range []string{"plans", "available_plans", "packages", "products", "items"} {
+	for _, key := range []string{"plans", "available_plans", "available_packages", "sellable_plans", "plan_list", "packages", "products", "items"} {
 		if x, exists := m[key]; exists {
 			switch x.(type) {
 			case []any, map[string]any:
@@ -460,13 +460,13 @@ func agentCards(root any) []string {
 		}
 		switch x := v.(type) {
 		case map[string]any:
-			for _, key := range []string{"card_key", "key", "code"} {
+			for _, key := range []string{"card_key", "key"} {
 				if s, ok := x[key].(string); ok && strings.TrimSpace(s) != "" {
 					out = append(out, splitCards(s)...)
 					return
 				}
 			}
-			for _, key := range []string{"keys", "cards", "card_keys", "codes", "items", "data", "result", "payload"} {
+			for _, key := range []string{"keys", "cards", "card_keys", "codes", "items", "data", "result", "payload", "order"} {
 				if child, ok := x[key]; ok {
 					walk(child, depth+1)
 				}
