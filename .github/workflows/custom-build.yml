@@ -1,0 +1,67 @@
+name: Build Custom Linux Binary
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build-linux-amd64:
+    name: Build fullstack linux/amd64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.22.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: |
+            storefront/pnpm-lock.yaml
+            admin/pnpm-lock.yaml
+
+      - name: Build embedded frontend
+        run: make -C server web-dist
+
+      - name: Build linux amd64 binary
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cd server
+          VERSION="custom-${GITHUB_SHA::7}"
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+            -tags fullstack \
+            -trimpath \
+            -ldflags "-s -w -X main.Version=${VERSION}" \
+            -o ../dist/zcard-linux-amd64 ./cmd/zcard
+          chmod +x ../dist/zcard-linux-amd64
+          ../dist/zcard-linux-amd64 version
+          cd ..
+          sha256sum dist/zcard-linux-amd64 > dist/SHA256SUMS
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: zcard-linux-amd64-${{ github.sha }}
+          path: |
+            dist/zcard-linux-amd64
+            dist/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 30
