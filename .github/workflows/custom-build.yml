@@ -7,7 +7,7 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-linux-amd64:
@@ -65,3 +65,12 @@ jobs:
             dist/SHA256SUMS
           if-no-files-found: error
           retention-days: 30
+
+
+      - name: Publish custom-latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release delete custom-latest --cleanup-tag -y || true
+          gh release create custom-latest             dist/zcard-linux-amd64             dist/SHA256SUMS             --target "${GITHUB_SHA}"             --title "Custom Latest"             --notes "Automatic fullstack Linux amd64 build from main at ${GITHUB_SHA}."
