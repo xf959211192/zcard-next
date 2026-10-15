@@ -1,0 +1,378 @@
+diff --git a/app/model/amount_reservation.go b/app/model/amount_reservation.go
+new file mode 100644
+index 0000000..eca625f
+--- /dev/null
++++ b/app/model/amount_reservation.go
+@@ -0,0 +1,21 @@
++package model
++
++import "gorm.io/gorm/clause"
++
++const amountReservationMaxSteps = 10000
++
++// AmountReservation 独立于订单保留，不随订单删除、取消或过期而释放。
++// 此补丁用于全新网关；已有网关迁移必须先回填全部历史金额。
++type AmountReservation struct {
++	TradeType TradeType `gorm:"primaryKey;type:varchar(20)"`
++	Address   string    `gorm:"primaryKey;type:varchar(128)"`
++	Amount    string    `gorm:"primaryKey;type:varchar(32)"`
++}
++
++func (AmountReservation) TableName() string { return "bep_amount_reservation" }
++
++func reserveAmount(wallet Wallet, tradeType TradeType, amount string) (bool, error) {
++	row := AmountReservation{TradeType: tradeType, Address: wallet.GetMatchAddr(), Amount: amount}
++	result := Db.Clauses(clause.OnConflict{DoNothing: true}).Create(&row)
++	return result.RowsAffected == 1, result.Error
++}
+diff --git a/app/model/amount_reservation_test.go b/app/model/amount_reservation_test.go
+new file mode 100644
+index 0000000..40bfcbf
+--- /dev/null
++++ b/app/model/amount_reservation_test.go
+@@ -0,0 +1,96 @@
++package model
++
++import (
++	"path/filepath"
++	"sync"
++	"testing"
++	"time"
++
++	"github.com/shopspring/decimal"
++)
++
++func TestAmountReservationSurvivesOrderDeletionAndRestart(t *testing.T) {
++	path := filepath.Join(t.TempDir(), "gateway.db")
++	if err := Init(path, ""); err != nil {
++		t.Fatal(err)
++	}
++	defer Close()
++	wallet, err := NewWallet("0x1111111111111111111111111111111111111111", UsdtBep20)
++	if err != nil {
++		t.Fatal(err)
++	}
++	p := OrderParams{Money: decimal.NewFromInt(10), TradeType: UsdtBep20, Fiat: "CNY", OrderId: "old", ApiType: OrderApiTypeEpusdt}
++	w, first, err := CalcTradeAmount([]Wallet{wallet}, decimal.NewFromInt(1), p)
++	if err != nil {
++		t.Fatal(err)
++	}
++	order, err := BuildOrder(p, Trade{Wallet: w, Crypto: USDT, Rate: decimal.NewFromInt(1), Amount: first})
++	if err != nil {
++		t.Fatal(err)
++	}
++	order.ExpiredAt = time.Now().Add(-time.Minute)
++	order.SetExpired()
++	_, second, err := CalcTradeAmount([]Wallet{wallet}, decimal.NewFromInt(1), p)
++	if err != nil || first == second {
++		t.Fatalf("过期金额被复用：%s %s %v", first, second, err)
++	}
++	if err := Db.Delete(&order).Error; err != nil {
++		t.Fatal(err)
++	}
++	Close()
++	if err := Init(path, ""); err != nil {
++		t.Fatal(err)
++	}
++	_, third, err := CalcTradeAmount([]Wallet{wallet}, decimal.NewFromInt(1), p)
++	if err != nil || third == first || third == second {
++		t.Fatalf("删除或重启后复用了金额：%s %v", third, err)
++	}
++
++	// 同一数据库上的并发分配必须得到不同金额，写入失败则拒绝分配。
++	var wg sync.WaitGroup
++	results := make(chan string, 8)
++	for range 8 {
++		wg.Add(1)
++		go func() {
++			defer wg.Done()
++			_, value, err := CalcTradeAmount([]Wallet{wallet}, decimal.NewFromInt(1), p)
++			if err != nil {
++				results <- "error:" + err.Error()
++				return
++			}
++			results <- value
++		}()
++	}
++	wg.Wait()
++	close(results)
++	seen := map[string]bool{first: true, second: true, third: true}
++	for value := range results {
++		if len(value) > 6 && value[:6] == "error:" {
++			t.Fatal(value)
++		}
++		if seen[value] {
++			t.Fatal("并发分配重复金额：" + value)
++		}
++		seen[value] = true
++	}
++
++	// 额度耗尽时明确失败，不能绕回已经使用的金额。
++	rows := make([]AmountReservation, 0, amountReservationMaxSteps+1)
++	for i := 0; i <= amountReservationMaxSteps; i++ {
++		amount := decimal.NewFromInt(20).Add(decimal.NewFromInt(int64(i)).Mul(decimal.RequireFromString("0.01"))).String()
++		rows = append(rows, AmountReservation{TradeType: UsdtBep20, Address: wallet.GetMatchAddr(), Amount: amount})
++	}
++	if err := Db.CreateInBatches(rows, 200).Error; err != nil {
++		t.Fatal(err)
++	}
++	p.Money = decimal.NewFromInt(20)
++	if _, _, err := CalcTradeAmount([]Wallet{wallet}, decimal.NewFromInt(1), p); err == nil {
++		t.Fatal("金额耗尽后没有拒绝订单")
++	}
++	if err := Db.Migrator().DropTable(&AmountReservation{}); err != nil {
++		t.Fatal(err)
++	}
++	if _, _, err := CalcTradeAmount([]Wallet{wallet}, decimal.NewFromInt(1), p); err == nil {
++		t.Fatal("保留表损坏时没有拒绝订单")
++	}
++}
+diff --git a/app/model/model.go b/app/model/model.go
+index c6f5bc7..715951c 100644
+--- a/app/model/model.go
++++ b/app/model/model.go
+@@ -126,6 +126,7 @@ func AutoMigrate() error {
+ 		&NotifyRecord{},
+ 		&Conf{},
+ 		&Rate{},
++		&AmountReservation{},
+ 	})
+ }
+ 
+diff --git a/app/model/order.go b/app/model/order.go
+index ab49b74..5412a0d 100644
+--- a/app/model/order.go
++++ b/app/model/order.go
+@@ -393,9 +393,22 @@ func CalcTradeAmount(wallets []Wallet, rate decimal.Decimal, p OrderParams) (Wal
+ 	if amount.LessThan(atom) { // 低于最小原子精度，从最小原子精度开始计算
+ 		amount = atom
+ 	}
++	// 预取本次报价附近的永久保留记录，避免每次重试都读取数据库。
++	var reservedAmounts []AmountReservation
++	addresses := make([]string, 0, len(wallets))
++	for _, wallet := range wallets {
++		addresses = append(addresses, wallet.GetMatchAddr())
++	}
++	if err := Db.Where("trade_type = ? AND address IN ? AND CAST(amount AS NUMERIC) >= ? AND CAST(amount AS NUMERIC) <= ?",
++		p.TradeType, addresses, amount.String(), amount.Add(atom.Mul(decimal.NewFromInt(amountReservationMaxSteps))).String()).Find(&reservedAmounts).Error; err != nil {
++		return Wallet{}, "", fmt.Errorf("读取金额保留记录失败：%w", err)
++	}
++	for _, reservation := range reservedAmounts {
++		lock[reservation.Address+reservation.Amount] = true
++	}
+ 
+ 	var i = 0
+-	var m = 100
++	var m = amountReservationMaxSteps
+ 	for {
+ 		for _, w := range wallets {
+ 			k := w.GetMatchAddr() + amount.String()
+@@ -403,7 +416,14 @@ func CalcTradeAmount(wallets []Wallet, rate decimal.Decimal, p OrderParams) (Wal
+ 				continue
+ 			}
+ 
+-			return w, amount.String(), nil
++			// 已展示给顾客的金额永久保留，订单过期或被清理也不能复用。
++			reserved, err := reserveAmount(w, p.TradeType, amount.String())
++			if err != nil {
++				return Wallet{}, "", fmt.Errorf("保存金额保留记录失败：%w", err)
++			}
++			if reserved {
++				return w, amount.String(), nil
++			}
+ 		}
+ 
+ 		// 已经被占用，每次递增一个原子精度
+diff --git a/app/router/health.go b/app/router/health.go
+new file mode 100644
+index 0000000..e2af2f4
+--- /dev/null
++++ b/app/router/health.go
+@@ -0,0 +1,29 @@
++package router
++
++import (
++	"net"
++	"time"
++
++	"github.com/gin-gonic/gin"
++	"github.com/v03413/bepusdt/app"
++	"github.com/v03413/bepusdt/app/conf"
++	"github.com/v03413/bepusdt/app/model"
++)
++
++// registerLocalHealth 只向回环请求返回监控所需字段，不返回配置或凭据。
++func registerLocalHealth(engine *gin.Engine) {
++	started := time.Now().Unix()
++	engine.GET("/internal/health", func(ctx *gin.Context) {
++		host, _, err := net.SplitHostPort(ctx.Request.RemoteAddr)
++		if err != nil || !net.ParseIP(host).IsLoopback() {
++			ctx.AbortWithStatus(403)
++			return
++		}
++		var pending int64
++		if err := model.Db.Model(&model.Order{}).Where("status IN ?", []int{model.OrderStatusWaiting, model.OrderStatusConfirming}).Count(&pending).Error; err != nil {
++			ctx.JSON(503, gin.H{"ok": false})
++			return
++		}
++		ctx.JSON(200, gin.H{"ok": true, "version": app.Version, "started_at": started, "pending_orders": pending, "scan": conf.GetStats()})
++	})
++}
+diff --git a/app/router/health_test.go b/app/router/health_test.go
+new file mode 100644
+index 0000000..4e2e14c
+--- /dev/null
++++ b/app/router/health_test.go
+@@ -0,0 +1,21 @@
++package router
++
++import (
++	"net/http/httptest"
++	"testing"
++
++	"github.com/gin-gonic/gin"
++)
++
++func TestLocalHealthRejectsNonLoopback(t *testing.T) {
++	gin.SetMode(gin.TestMode)
++	engine := gin.New()
++	registerLocalHealth(engine)
++	request := httptest.NewRequest("GET", "/internal/health", nil)
++	request.RemoteAddr = "192.0.2.10:32000"
++	recorder := httptest.NewRecorder()
++	engine.ServeHTTP(recorder, request)
++	if recorder.Code != 403 {
++		t.Fatal("监控接口未拒绝外部来源")
++	}
++}
+diff --git a/app/router/router.go b/app/router/router.go
+index 60c9d32..01ba472 100644
+--- a/app/router/router.go
++++ b/app/router/router.go
+@@ -59,6 +59,7 @@ func Handler() *gin.Engine {
+ 
+ 	{
+ 		staticInit(engine)
++		registerLocalHealth(engine)
+ 		epusdtInit(engine)
+ 		epayInit(engine)
+ 		adminInit(engine)
+diff --git a/app/router/runtime_templates_test.go b/app/router/runtime_templates_test.go
+new file mode 100644
+index 0000000..ca01fa8
+--- /dev/null
++++ b/app/router/runtime_templates_test.go
+@@ -0,0 +1,37 @@
++package router
++
++import (
++	"net/http/httptest"
++	"path/filepath"
++	"strings"
++	"testing"
++
++	"github.com/v03413/bepusdt/app/log"
++	"github.com/v03413/bepusdt/app/model"
++)
++
++// 构建必须包含生成的管理页面，防止编译通过却在启动时因模板缺失退出。
++func TestProductionTemplatesAndLocalHealth(t *testing.T) {
++	root := t.TempDir()
++	if err := model.Init(filepath.Join(root, "runtime.db"), ""); err != nil {
++		t.Fatal(err)
++	}
++	defer model.Close()
++	if err := log.Init(filepath.Join(root, "logs")); err != nil {
++		t.Fatal(err)
++	}
++	defer log.Close()
++	engine := Handler()
++	request := httptest.NewRequest("GET", "/internal/health", nil)
++	request.RemoteAddr = "127.0.0.1:12345"
++	response := httptest.NewRecorder()
++	engine.ServeHTTP(response, request)
++	if response.Code != 200 {
++		t.Fatalf("健康检查失败：%d", response.Code)
++	}
++	for _, field := range []string{"api_token", "api_auth_token", "rpc_endpoint", "password"} {
++		if strings.Contains(response.Body.String(), field) {
++			t.Fatal("监控响应包含敏感配置字段")
++		}
++	}
++}
+diff --git a/app/task/late_payment_test.go b/app/task/late_payment_test.go
+new file mode 100644
+index 0000000..366c8b1
+--- /dev/null
++++ b/app/task/late_payment_test.go
+@@ -0,0 +1,70 @@
++package task
++
++import (
++	"path/filepath"
++	"testing"
++	"time"
++
++	"github.com/shopspring/decimal"
++	"github.com/v03413/bepusdt/app/model"
++)
++
++func TestLatePaymentCannotMatchNewInvoice(t *testing.T) {
++	path := filepath.Join(t.TempDir(), "late.db")
++	if err := model.Init(path, ""); err != nil {
++		t.Fatal(err)
++	}
++	defer model.Close()
++	wallet, err := model.NewWallet("0x1111111111111111111111111111111111111111", model.UsdtBep20)
++	if err != nil {
++		t.Fatal(err)
++	}
++	p := model.OrderParams{Money: decimal.NewFromInt(10), TradeType: model.UsdtBep20, Fiat: "CNY", OrderId: "old", ApiType: model.OrderApiTypeEpusdt}
++	w, oldAmount, err := model.CalcTradeAmount([]model.Wallet{wallet}, decimal.NewFromInt(1), p)
++	if err != nil {
++		t.Fatal(err)
++	}
++	old, err := model.BuildOrder(p, model.Trade{Wallet: w, Crypto: model.USDT, Rate: decimal.NewFromInt(1), Amount: oldAmount})
++	if err != nil {
++		t.Fatal(err)
++	}
++	old.SetExpired()
++	if err := model.Db.Delete(&old).Error; err != nil {
++		t.Fatal(err)
++	}
++	model.Close()
++	if err := model.Init(path, ""); err != nil {
++		t.Fatal(err)
++	}
++	p.OrderId = "new"
++	w, newAmount, err := model.CalcTradeAmount([]model.Wallet{wallet}, decimal.NewFromInt(1), p)
++	if err != nil {
++		t.Fatal(err)
++	}
++	current, err := model.BuildOrder(p, model.Trade{Wallet: w, Crypto: model.USDT, Rate: decimal.NewFromInt(1), Amount: newAmount})
++	if err != nil {
++		t.Fatal(err)
++	}
++	event := transfer{TradeType: model.UsdtBep20, RecvAddress: wallet.GetMatchAddr(), Timestamp: time.Now().Add(time.Second), Amount: decimal.RequireFromString(oldAmount)}
++	if orderTransferMatch(current, event) {
++		t.Fatal("旧付款错误匹配了新订单")
++	}
++	event.Amount = decimal.RequireFromString(newAmount)
++	if !orderTransferMatch(current, event) {
++		t.Fatal("有效付款未匹配")
++	}
++	event.Amount = event.Amount.Sub(decimal.RequireFromString("0.001"))
++	if orderTransferMatch(current, event) {
++		t.Fatal("少付金额被匹配")
++	}
++	event.Amount = decimal.RequireFromString(newAmount)
++	event.TradeType = model.UsdcBep20
++	if orderTransferMatch(current, event) {
++		t.Fatal("错误代币被匹配")
++	}
++	event.TradeType = model.UsdtBep20
++	event.Timestamp = current.ExpiredAt.Add(time.Second)
++	if orderTransferMatch(current, event) {
++		t.Fatal("超时付款被匹配")
++	}
++}
