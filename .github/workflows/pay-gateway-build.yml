@@ -34,8 +34,8 @@ jobs:
       - name: 获取固定版本的网关上游源码
         uses: actions/checkout@v4
         with:
-          repository: v03413/BEpusdt
-          ref: d36d34fe04725b5be121d2877f6251da9cc6089b
+          repository: xf959211192/BEpusdt
+          ref: 4cee789765dc47da450003c973efb710bfa2a5e2
           path: gateway
           persist-credentials: false
       - uses: actions/setup-go@v5
@@ -48,10 +48,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: 应用金额防复用与本机监控补丁
+      - name: 核对 fork 已包含安全补丁
         run: |
-          git apply --check ../integration/deploy/patches/bepusdt-reservation.patch
-          git apply ../integration/deploy/patches/bepusdt-reservation.patch
+          git apply --reverse --check ../integration/deploy/patches/bepusdt-reservation.patch
       - name: 构建并嵌入管理页面
         run: |
           pnpm --dir web install --frozen-lockfile
@@ -61,7 +60,7 @@ jobs:
       - name: 构建 Linux 网关
         run: |
           mkdir -p ../dist-pay
-          go build -ldflags '-s -w -X github.com/v03413/bepusdt/app.Version=1.24.2-main.d36d34f-reservation.2' -o ../dist-pay/bepusdt ./main
+          go build -ldflags '-s -w -X github.com/v03413/bepusdt/app.Version=1.24.2-main.d36d34f-reservation.3' -o ../dist-pay/bepusdt ./main
       - name: 回归测试与静态检查
         run: |
           timeout 60s go test -count=1 -timeout=45s ./app/model ./app/task ./app/task/notify ./app/router
@@ -73,7 +72,7 @@ jobs:
           from pathlib import Path
           import hashlib,json,os
           root=Path('../dist-pay')
-          metadata={'upstream':'v03413/BEpusdt','upstream_commit':'d36d34fe04725b5be121d2877f6251da9cc6089b','integration_commit':os.environ['GITHUB_SHA'],'version':'1.24.2-main.d36d34f-reservation.2','tests':'passed'}
+          metadata={'upstream':'v03413/BEpusdt','upstream_commit':'d36d34fe04725b5be121d2877f6251da9cc6089b','fork':'xf959211192/BEpusdt','fork_commit':'4cee789765dc47da450003c973efb710bfa2a5e2','integration_commit':os.environ['GITHUB_SHA'],'version':'1.24.2-main.d36d34f-reservation.3','tests':'passed'}
           metadata['sha256']={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in root.iterdir() if p.is_file()}
           (root/'build-metadata.json').write_text(json.dumps(metadata,indent=2))
           PY

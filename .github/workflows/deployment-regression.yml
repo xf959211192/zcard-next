@@ -1,0 +1,44 @@
+name: 支付部署关键回归
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/deployment-regression.yml'
+      - 'server/internal/mods/supply/adapter/**'
+      - 'server/internal/mods/payment/**'
+      - 'server/internal/mods/identity/**'
+      - 'server/migrations/**'
+
+permissions:
+  contents: read
+
+jobs:
+  regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+      - name: 在云端预编译测试程序
+        run: |
+          packages=(internal/mods/supply/adapter internal/mods/payment/adapter internal/mods/payment internal/mods/identity migrations)
+          for i in "${!packages[@]}"; do
+            go test -c -o "/tmp/zcard-test-$i" "./${packages[$i]}"
+          done
+      - name: 分批运行，每批最多六十秒
+        run: |
+          packages=(internal/mods/supply/adapter internal/mods/payment/adapter internal/mods/payment internal/mods/identity migrations)
+          root="$PWD"
+          for i in "${!packages[@]}"; do
+            cd "$root/${packages[$i]}"
+            timeout 60s "/tmp/zcard-test-$i" -test.v -test.timeout=45s
+          done
