@@ -38,7 +38,11 @@ jobs:
         run: |
           packages=(internal/mods/supply/adapter internal/mods/payment/adapter internal/mods/payment internal/mods/identity migrations)
           root="$PWD"
+          status=0
           for i in "${!packages[@]}"; do
             cd "$root/${packages[$i]}"
-            timeout 60s "/tmp/zcard-test-$i" -test.v -test.timeout=45s
+            if ! timeout 60s "/tmp/zcard-test-$i" -test.v -test.timeout=45s; then
+              status=1
+            fi
           done
+          exit "$status"
