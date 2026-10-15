@@ -63,6 +63,54 @@ func (_c *RefundOrderCreate) SetAmount(v int64) *RefundOrderCreate {
 	return _c
 }
 
+// SetItemAllocations sets the "item_allocations" field.
+func (_c *RefundOrderCreate) SetItemAllocations(v []map[string]int64) *RefundOrderCreate {
+	_c.mutation.SetItemAllocations(v)
+	return _c
+}
+
+// SetRequestKey sets the "request_key" field.
+func (_c *RefundOrderCreate) SetRequestKey(v string) *RefundOrderCreate {
+	_c.mutation.SetRequestKey(v)
+	return _c
+}
+
+// SetNillableRequestKey sets the "request_key" field if the given value is not nil.
+func (_c *RefundOrderCreate) SetNillableRequestKey(v *string) *RefundOrderCreate {
+	if v != nil {
+		_c.SetRequestKey(*v)
+	}
+	return _c
+}
+
+// SetRequestHash sets the "request_hash" field.
+func (_c *RefundOrderCreate) SetRequestHash(v string) *RefundOrderCreate {
+	_c.mutation.SetRequestHash(v)
+	return _c
+}
+
+// SetNillableRequestHash sets the "request_hash" field if the given value is not nil.
+func (_c *RefundOrderCreate) SetNillableRequestHash(v *string) *RefundOrderCreate {
+	if v != nil {
+		_c.SetRequestHash(*v)
+	}
+	return _c
+}
+
+// SetShippingAmount sets the "shipping_amount" field.
+func (_c *RefundOrderCreate) SetShippingAmount(v int64) *RefundOrderCreate {
+	_c.mutation.SetShippingAmount(v)
+	return _c
+}
+
+// SetNillableShippingAmount sets the "shipping_amount" field if the given value is not nil.
+func (_c *RefundOrderCreate) SetNillableShippingAmount(v *int64) *RefundOrderCreate {
+	if v != nil {
+		_c.SetShippingAmount(*v)
+	}
+	return _c
+}
+
 // SetFeeAmount sets the "fee_amount" field.
 func (_c *RefundOrderCreate) SetFeeAmount(v int64) *RefundOrderCreate {
 	_c.mutation.SetFeeAmount(v)
@@ -193,6 +241,10 @@ func (_c *RefundOrderCreate) defaults() {
 		v := refundorder.DefaultUpdatedAt()
 		_c.mutation.SetUpdatedAt(v)
 	}
+	if _, ok := _c.mutation.ShippingAmount(); !ok {
+		v := refundorder.DefaultShippingAmount
+		_c.mutation.SetShippingAmount(v)
+	}
 	if _, ok := _c.mutation.FeeAmount(); !ok {
 		v := refundorder.DefaultFeeAmount
 		_c.mutation.SetFeeAmount(v)
@@ -216,6 +268,19 @@ func (_c *RefundOrderCreate) check() error {
 	}
 	if _, ok := _c.mutation.Amount(); !ok {
 		return &ValidationError{Name: "amount", err: errors.New(`ent: missing required field "RefundOrder.amount"`)}
+	}
+	if v, ok := _c.mutation.RequestKey(); ok {
+		if err := refundorder.RequestKeyValidator(v); err != nil {
+			return &ValidationError{Name: "request_key", err: fmt.Errorf(`ent: validator failed for field "RefundOrder.request_key": %w`, err)}
+		}
+	}
+	if v, ok := _c.mutation.RequestHash(); ok {
+		if err := refundorder.RequestHashValidator(v); err != nil {
+			return &ValidationError{Name: "request_hash", err: fmt.Errorf(`ent: validator failed for field "RefundOrder.request_hash": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.ShippingAmount(); !ok {
+		return &ValidationError{Name: "shipping_amount", err: errors.New(`ent: missing required field "RefundOrder.shipping_amount"`)}
 	}
 	if _, ok := _c.mutation.FeeAmount(); !ok {
 		return &ValidationError{Name: "fee_amount", err: errors.New(`ent: missing required field "RefundOrder.fee_amount"`)}
@@ -288,6 +353,22 @@ func (_c *RefundOrderCreate) createSpec() (*RefundOrder, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Amount(); ok {
 		_spec.SetField(refundorder.FieldAmount, field.TypeInt64, value)
 		_node.Amount = value
+	}
+	if value, ok := _c.mutation.ItemAllocations(); ok {
+		_spec.SetField(refundorder.FieldItemAllocations, field.TypeJSON, value)
+		_node.ItemAllocations = value
+	}
+	if value, ok := _c.mutation.RequestKey(); ok {
+		_spec.SetField(refundorder.FieldRequestKey, field.TypeString, value)
+		_node.RequestKey = value
+	}
+	if value, ok := _c.mutation.RequestHash(); ok {
+		_spec.SetField(refundorder.FieldRequestHash, field.TypeString, value)
+		_node.RequestHash = value
+	}
+	if value, ok := _c.mutation.ShippingAmount(); ok {
+		_spec.SetField(refundorder.FieldShippingAmount, field.TypeInt64, value)
+		_node.ShippingAmount = value
 	}
 	if value, ok := _c.mutation.FeeAmount(); ok {
 		_spec.SetField(refundorder.FieldFeeAmount, field.TypeInt64, value)
@@ -421,6 +502,78 @@ func (u *RefundOrderUpsert) UpdateAmount() *RefundOrderUpsert {
 // AddAmount adds v to the "amount" field.
 func (u *RefundOrderUpsert) AddAmount(v int64) *RefundOrderUpsert {
 	u.Add(refundorder.FieldAmount, v)
+	return u
+}
+
+// SetItemAllocations sets the "item_allocations" field.
+func (u *RefundOrderUpsert) SetItemAllocations(v []map[string]int64) *RefundOrderUpsert {
+	u.Set(refundorder.FieldItemAllocations, v)
+	return u
+}
+
+// UpdateItemAllocations sets the "item_allocations" field to the value that was provided on create.
+func (u *RefundOrderUpsert) UpdateItemAllocations() *RefundOrderUpsert {
+	u.SetExcluded(refundorder.FieldItemAllocations)
+	return u
+}
+
+// ClearItemAllocations clears the value of the "item_allocations" field.
+func (u *RefundOrderUpsert) ClearItemAllocations() *RefundOrderUpsert {
+	u.SetNull(refundorder.FieldItemAllocations)
+	return u
+}
+
+// SetRequestKey sets the "request_key" field.
+func (u *RefundOrderUpsert) SetRequestKey(v string) *RefundOrderUpsert {
+	u.Set(refundorder.FieldRequestKey, v)
+	return u
+}
+
+// UpdateRequestKey sets the "request_key" field to the value that was provided on create.
+func (u *RefundOrderUpsert) UpdateRequestKey() *RefundOrderUpsert {
+	u.SetExcluded(refundorder.FieldRequestKey)
+	return u
+}
+
+// ClearRequestKey clears the value of the "request_key" field.
+func (u *RefundOrderUpsert) ClearRequestKey() *RefundOrderUpsert {
+	u.SetNull(refundorder.FieldRequestKey)
+	return u
+}
+
+// SetRequestHash sets the "request_hash" field.
+func (u *RefundOrderUpsert) SetRequestHash(v string) *RefundOrderUpsert {
+	u.Set(refundorder.FieldRequestHash, v)
+	return u
+}
+
+// UpdateRequestHash sets the "request_hash" field to the value that was provided on create.
+func (u *RefundOrderUpsert) UpdateRequestHash() *RefundOrderUpsert {
+	u.SetExcluded(refundorder.FieldRequestHash)
+	return u
+}
+
+// ClearRequestHash clears the value of the "request_hash" field.
+func (u *RefundOrderUpsert) ClearRequestHash() *RefundOrderUpsert {
+	u.SetNull(refundorder.FieldRequestHash)
+	return u
+}
+
+// SetShippingAmount sets the "shipping_amount" field.
+func (u *RefundOrderUpsert) SetShippingAmount(v int64) *RefundOrderUpsert {
+	u.Set(refundorder.FieldShippingAmount, v)
+	return u
+}
+
+// UpdateShippingAmount sets the "shipping_amount" field to the value that was provided on create.
+func (u *RefundOrderUpsert) UpdateShippingAmount() *RefundOrderUpsert {
+	u.SetExcluded(refundorder.FieldShippingAmount)
+	return u
+}
+
+// AddShippingAmount adds v to the "shipping_amount" field.
+func (u *RefundOrderUpsert) AddShippingAmount(v int64) *RefundOrderUpsert {
+	u.Add(refundorder.FieldShippingAmount, v)
 	return u
 }
 
@@ -623,6 +776,90 @@ func (u *RefundOrderUpsertOne) AddAmount(v int64) *RefundOrderUpsertOne {
 func (u *RefundOrderUpsertOne) UpdateAmount() *RefundOrderUpsertOne {
 	return u.Update(func(s *RefundOrderUpsert) {
 		s.UpdateAmount()
+	})
+}
+
+// SetItemAllocations sets the "item_allocations" field.
+func (u *RefundOrderUpsertOne) SetItemAllocations(v []map[string]int64) *RefundOrderUpsertOne {
+	return u.Update(func(s *RefundOrderUpsert) {
+		s.SetItemAllocations(v)
+	})
+}
+
+// UpdateItemAllocations sets the "item_allocations" field to the value that was provided on create.
+func (u *RefundOrderUpsertOne) UpdateItemAllocations() *RefundOrderUpsertOne {
+	return u.Update(func(s *RefundOrderUpsert) {
+		s.UpdateItemAllocations()
+	})
+}
+
+// ClearItemAllocations clears the value of the "item_allocations" field.
+func (u *RefundOrderUpsertOne) ClearItemAllocations() *RefundOrderUpsertOne {
+	return u.Update(func(s *RefundOrderUpsert) {
+		s.ClearItemAllocations()
+	})
+}
+
+// SetRequestKey sets the "request_key" field.
+func (u *RefundOrderUpsertOne) SetRequestKey(v string) *RefundOrderUpsertOne {
+	return u.Update(func(s *RefundOrderUpsert) {
+		s.SetRequestKey(v)
+	})
+}
+
+// UpdateRequestKey sets the "request_key" field to the value that was provided on create.
+func (u *RefundOrderUpsertOne) UpdateRequestKey() *RefundOrderUpsertOne {
+	return u.Update(func(s *RefundOrderUpsert) {
+		s.UpdateRequestKey()
+	})
+}
+
+// ClearRequestKey clears the value of the "request_key" field.
+func (u *RefundOrderUpsertOne) ClearRequestKey() *RefundOrderUpsertOne {
+	return u.Update(func(s *RefundOrderUpsert) {
+		s.ClearRequestKey()
+	})
+}
+
+// SetRequestHash sets the "request_hash" field.
+func (u *RefundOrderUpsertOne) SetRequestHash(v string) *RefundOrderUpsertOne {
+	return u.Update(func(s *RefundOrderUpsert) {
+		s.SetRequestHash(v)
+	})
+}
+
+// UpdateRequestHash sets the "request_hash" field to the value that was provided on create.
+func (u *RefundOrderUpsertOne) UpdateRequestHash() *RefundOrderUpsertOne {
+	return u.Update(func(s *RefundOrderUpsert) {
+		s.UpdateRequestHash()
+	})
+}
+
+// ClearRequestHash clears the value of the "request_hash" field.
+func (u *RefundOrderUpsertOne) ClearRequestHash() *RefundOrderUpsertOne {
+	return u.Update(func(s *RefundOrderUpsert) {
+		s.ClearRequestHash()
+	})
+}
+
+// SetShippingAmount sets the "shipping_amount" field.
+func (u *RefundOrderUpsertOne) SetShippingAmount(v int64) *RefundOrderUpsertOne {
+	return u.Update(func(s *RefundOrderUpsert) {
+		s.SetShippingAmount(v)
+	})
+}
+
+// AddShippingAmount adds v to the "shipping_amount" field.
+func (u *RefundOrderUpsertOne) AddShippingAmount(v int64) *RefundOrderUpsertOne {
+	return u.Update(func(s *RefundOrderUpsert) {
+		s.AddShippingAmount(v)
+	})
+}
+
+// UpdateShippingAmount sets the "shipping_amount" field to the value that was provided on create.
+func (u *RefundOrderUpsertOne) UpdateShippingAmount() *RefundOrderUpsertOne {
+	return u.Update(func(s *RefundOrderUpsert) {
+		s.UpdateShippingAmount()
 	})
 }
 
@@ -1008,6 +1245,90 @@ func (u *RefundOrderUpsertBulk) AddAmount(v int64) *RefundOrderUpsertBulk {
 func (u *RefundOrderUpsertBulk) UpdateAmount() *RefundOrderUpsertBulk {
 	return u.Update(func(s *RefundOrderUpsert) {
 		s.UpdateAmount()
+	})
+}
+
+// SetItemAllocations sets the "item_allocations" field.
+func (u *RefundOrderUpsertBulk) SetItemAllocations(v []map[string]int64) *RefundOrderUpsertBulk {
+	return u.Update(func(s *RefundOrderUpsert) {
+		s.SetItemAllocations(v)
+	})
+}
+
+// UpdateItemAllocations sets the "item_allocations" field to the value that was provided on create.
+func (u *RefundOrderUpsertBulk) UpdateItemAllocations() *RefundOrderUpsertBulk {
+	return u.Update(func(s *RefundOrderUpsert) {
+		s.UpdateItemAllocations()
+	})
+}
+
+// ClearItemAllocations clears the value of the "item_allocations" field.
+func (u *RefundOrderUpsertBulk) ClearItemAllocations() *RefundOrderUpsertBulk {
+	return u.Update(func(s *RefundOrderUpsert) {
+		s.ClearItemAllocations()
+	})
+}
+
+// SetRequestKey sets the "request_key" field.
+func (u *RefundOrderUpsertBulk) SetRequestKey(v string) *RefundOrderUpsertBulk {
+	return u.Update(func(s *RefundOrderUpsert) {
+		s.SetRequestKey(v)
+	})
+}
+
+// UpdateRequestKey sets the "request_key" field to the value that was provided on create.
+func (u *RefundOrderUpsertBulk) UpdateRequestKey() *RefundOrderUpsertBulk {
+	return u.Update(func(s *RefundOrderUpsert) {
+		s.UpdateRequestKey()
+	})
+}
+
+// ClearRequestKey clears the value of the "request_key" field.
+func (u *RefundOrderUpsertBulk) ClearRequestKey() *RefundOrderUpsertBulk {
+	return u.Update(func(s *RefundOrderUpsert) {
+		s.ClearRequestKey()
+	})
+}
+
+// SetRequestHash sets the "request_hash" field.
+func (u *RefundOrderUpsertBulk) SetRequestHash(v string) *RefundOrderUpsertBulk {
+	return u.Update(func(s *RefundOrderUpsert) {
+		s.SetRequestHash(v)
+	})
+}
+
+// UpdateRequestHash sets the "request_hash" field to the value that was provided on create.
+func (u *RefundOrderUpsertBulk) UpdateRequestHash() *RefundOrderUpsertBulk {
+	return u.Update(func(s *RefundOrderUpsert) {
+		s.UpdateRequestHash()
+	})
+}
+
+// ClearRequestHash clears the value of the "request_hash" field.
+func (u *RefundOrderUpsertBulk) ClearRequestHash() *RefundOrderUpsertBulk {
+	return u.Update(func(s *RefundOrderUpsert) {
+		s.ClearRequestHash()
+	})
+}
+
+// SetShippingAmount sets the "shipping_amount" field.
+func (u *RefundOrderUpsertBulk) SetShippingAmount(v int64) *RefundOrderUpsertBulk {
+	return u.Update(func(s *RefundOrderUpsert) {
+		s.SetShippingAmount(v)
+	})
+}
+
+// AddShippingAmount adds v to the "shipping_amount" field.
+func (u *RefundOrderUpsertBulk) AddShippingAmount(v int64) *RefundOrderUpsertBulk {
+	return u.Update(func(s *RefundOrderUpsert) {
+		s.AddShippingAmount(v)
+	})
+}
+
+// UpdateShippingAmount sets the "shipping_amount" field to the value that was provided on create.
+func (u *RefundOrderUpsertBulk) UpdateShippingAmount() *RefundOrderUpsertBulk {
+	return u.Update(func(s *RefundOrderUpsert) {
+		s.UpdateShippingAmount()
 	})
 }
 

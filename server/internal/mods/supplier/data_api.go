@@ -67,7 +67,11 @@ func (s *SupplyAPIService) Ping(ctx context.Context, _ *emptypb.Empty) (*supplyv
 			return nil, err
 		}
 		reply.Balance = balance
-		reply.Currency = "CNY"
+		code, err := data.BaseCurrency(ctx, s.repo.data)
+		if err != nil {
+			return nil, err
+		}
+		reply.Currency = code
 	}
 	return reply, nil
 }
@@ -283,6 +287,14 @@ func (s *SupplyAPIService) fulfillOrderTx(ctx context.Context, accountID, produc
 	}
 	if !errors.Is(err, ErrNotFound) {
 		return nil, false, err
+	}
+	// 与商品删除共用商品行锁；等待删除提交后不能再按旧目录售出库存。
+	exists, err := s.repo.lockCatalogProduct(ctx, productID, true)
+	if err != nil {
+		return nil, false, err
+	}
+	if !exists {
+		return &fulfillOutcome{rejected: true, errCode: "product_unavailable", errMsg: "商品不可用"}, false, nil
 	}
 	p, err := s.reader.GetForSupply(ctx, productID)
 	if err != nil || p.Status != 1 {

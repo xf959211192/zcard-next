@@ -17,24 +17,29 @@ import (
 	"github.com/NovaWorks/zcard-next/server/internal/data/ent/payment"
 	"github.com/NovaWorks/zcard-next/server/internal/data/ent/paymentchannel"
 	"github.com/NovaWorks/zcard-next/server/internal/mods/identity"
+	"github.com/NovaWorks/zcard-next/server/internal/mods/payment/adapter"
 	"github.com/NovaWorks/zcard-next/server/internal/mods/payment/port"
 	"github.com/NovaWorks/zcard-next/server/internal/platform/crypto"
 	"github.com/NovaWorks/zcard-next/server/internal/platform/money"
+	"github.com/NovaWorks/zcard-next/server/internal/platform/orderaccess"
+	"github.com/NovaWorks/zcard-next/server/internal/platform/tenancy"
 	"github.com/go-kratos/kratos/v3/errors"
+	"github.com/go-kratos/kratos/v3/transport"
 	"google.golang.org/protobuf/proto"
 )
 
 // Fee is a customer surcharge, not the provider's settlement cost.
 // Amount on a payment remains the exact gross amount requested from the gateway.
 type paymentPricing struct {
-	Base   int64          `json:"base"`
-	Fee    int64          `json:"fee"`
-	Total  int64          `json:"total"`
-	Rate   int64          `json:"rate"`
-	Type   string         `json:"type"`
-	Bearer string         `json:"bearer"`
-	Method string         `json:"method"`
-	Charge ChargeSnapshot `json:"charge"`
+	BaseCurrency string         `json:"base_currency,omitempty"`
+	Base         int64          `json:"base"`
+	Fee          int64          `json:"fee"`
+	Total        int64          `json:"total"`
+	Rate         int64          `json:"rate"`
+	Type         string         `json:"type"`
+	Bearer       string         `json:"bearer"`
+	Method       string         `json:"method"`
+	Charge       ChargeSnapshot `json:"charge"`
 }
 
 func validateFee(fee int64, kind, bearer string) error {
@@ -50,7 +55,24 @@ func validateRecommendation(label, description string) error {
 	return nil
 }
 func (r *PaymentRepoImpl) price(ctx context.Context, ch *ent.PaymentChannel, base int64, method string) (paymentPricing, error) {
-	p := paymentPricing{Base: base, Total: base, Rate: ch.Fee, Type: string(ch.FeeType), Bearer: string(ch.FeeBearer), Method: method}
+	if ch.Driver == "upay" {
+		cfg, err := adapter.ParseUpayConfig(r.DecryptConfig(ch))
+		if err != nil {
+			return paymentPricing{}, err
+		}
+		method, err = cfg.SelectTrade(method)
+		if err != nil {
+			return paymentPricing{}, err
+		}
+	}
+	baseCurrency, err := data.BaseCurrency(ctx, r.data)
+	if err != nil {
+		return paymentPricing{}, err
+	}
+	if _, err := chargeCurrency(ch.Driver, r.DecryptConfig(ch), baseCurrency); err != nil {
+		return paymentPricing{}, err
+	}
+	p := paymentPricing{BaseCurrency: baseCurrency, Base: base, Total: base, Rate: ch.Fee, Type: string(ch.FeeType), Bearer: string(ch.FeeBearer), Method: method}
 	if err := validateFee(p.Rate, p.Type, p.Bearer); err != nil {
 		return p, err
 	}
@@ -71,7 +93,7 @@ func (r *PaymentRepoImpl) price(ctx context.Context, ch *ent.PaymentChannel, bas
 	if !money.ValidCents(p.Total) {
 		return p, errors.BadRequest("payment.INVALID_AMOUNT", "含手续费金额超出允许范围")
 	}
-	if ch.Driver != "wallet" && ch.Driver != "bepusdt" {
+	if ch.Driver != "wallet" && !isNativeCryptoDriver(ch.Driver) {
 		var err error
 		p.Charge, err = r.computeCharge(ctx, ch.Driver, r.DecryptConfig(ch), money.Cents(p.Total))
 		if err != nil {
@@ -105,6 +127,61 @@ func checkQuote(ctx context.Context, q *storefrontv1.PaymentQuote) error {
 	}
 	return nil
 }
+
+func paymentOrderOwner(ctx context.Context, o *ent.Order) bool {
+	claims := identity.ClaimsFromContext(ctx)
+	return claims != nil && o.UserID != 0 && claims.Subject == o.UserID
+}
+
+// Both public payment entry points require the same tenant and order access.
+// A legacy order without a password can only be paid by its signed-in owner.
+func (s *StorePaymentService) paymentOrder(ctx context.Context, no, password string, suppliedToken ...string) (*ent.Order, error) {
+	var explicit string
+	if len(suppliedToken) > 0 {
+		explicit = suppliedToken[0]
+	}
+	token := explicit
+	if token == "" {
+		if tr, ok := transport.FromServerContext(ctx); ok {
+			token = tr.RequestHeader().Get("X-Order-Access-Token")
+		}
+	}
+	o, err := data.Client(ctx, s.data).Order.Query().
+		Where(order.OrderNo(no), order.SubsiteID(tenancy.FromContext(ctx).SubsiteID)).Only(ctx)
+	if ent.IsNotFound(err) {
+		return nil, errors.NotFound("order.NOT_FOUND", "订单不存在或查询密码错误")
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !paymentOrderOwner(ctx, o) {
+		if o.OrderAccessTokenHash != "" {
+			if !orderaccess.VerifyToken(o.OrderAccessTokenHash, o.SubsiteID, o.OrderNo, token) {
+				return nil, orderaccess.Required(ctx)
+			}
+			return o, nil
+		}
+		valid := o.QueryPasswordHash != "" && crypto.VerifyPassword(o.QueryPasswordHash, password)
+		if token != "" {
+			valid = orderaccess.VerifyToken(o.OrderAccessTokenHash, o.SubsiteID, o.OrderNo, token)
+		}
+		if !valid {
+			return nil, errors.NotFound("order.NOT_FOUND", "订单不存在或查询凭证无效")
+		}
+	}
+	return o, nil
+}
+
+func authorizeWalletPayment(ctx context.Context, o *ent.Order) error {
+	if identity.ClaimsFromContext(ctx) == nil {
+		return errors.Unauthorized("identity.UNAUTHORIZED", "余额支付需登录订单所属账户")
+	}
+	if !paymentOrderOwner(ctx, o) {
+		return errors.Forbidden("payment.ORDER_OWNER_REQUIRED", "余额支付只能由订单所属账户操作")
+	}
+	return nil
+}
+
 func (s *StorePaymentService) QuotePayment(ctx context.Context, req *storefrontv1.PaymentQuoteRequest) (*storefrontv1.PaymentQuote, error) {
 	scene := req.GetScene()
 	if scene == "" {
@@ -112,20 +189,21 @@ func (s *StorePaymentService) QuotePayment(ctx context.Context, req *storefrontv
 	}
 	base := req.GetAmountCents()
 	var subsite, orderID uint64
+	var purchaseOrder *ent.Order
 	scope := scene
 	if scene == scenePurchase {
-		o, err := data.Client(ctx, s.data).Order.Query().Where(order.OrderNo(req.GetOrderNo())).Only(ctx)
+		o, err := s.paymentOrder(ctx, req.GetOrderNo(), req.GetQueryPassword(), req.GetOrderAccessToken())
 		if err != nil {
-			return nil, errors.NotFound("order.NOT_FOUND", "订单不存在")
+			return nil, err
 		}
-		claims := identity.ClaimsFromContext(ctx)
-		if !(claims != nil && o.UserID != 0 && claims.Subject == o.UserID) && (o.QueryPasswordHash == "" || !crypto.VerifyPassword(o.QueryPasswordHash, req.GetQueryPassword())) {
-			return nil, errors.NotFound("order.NOT_FOUND", "订单不存在")
+		if err := s.repo.validateOrderCurrency(ctx, o); err != nil {
+			return nil, errors.BadRequest("payment.CURRENCY_MISMATCH", err.Error())
 		}
 		if o.Status != order.StatusPendingPayment || o.ExpiryReview || !time.Now().Before(o.ExpiredAt) {
 			return nil, errors.BadRequest("payment.ORDER_NOT_PENDING", "订单不在待支付状态")
 		}
 		base, subsite, orderID, scope = o.TotalAmount, o.SubsiteID, o.ID, o.OrderNo
+		purchaseOrder = o
 	} else if scene == sceneMemberRecharge || scene == sceneSupplyRecharge {
 		if identity.ClaimsFromContext(ctx) == nil {
 			return nil, errors.Unauthorized("identity.UNAUTHORIZED", "请先登录")
@@ -137,14 +215,16 @@ func (s *StorePaymentService) QuotePayment(ctx context.Context, req *storefrontv
 	if err != nil || !ch.DeletedAt.IsZero() {
 		return nil, errors.BadRequest("payment.CHANNEL_NOT_FOUND", "支付渠道不可用")
 	}
-	if err = checkPaymentUsage(ch, req.GetMethod(), scene); err != nil {
+	if err = s.repo.checkPaymentUsage(ch, req.GetMethod(), scene); err != nil {
 		return nil, errors.BadRequest("payment.SCENE_DISABLED", err.Error())
 	}
-	if ch.Driver == "wallet" && identity.ClaimsFromContext(ctx) == nil {
-		return nil, errors.Unauthorized("identity.UNAUTHORIZED", "余额支付需登录")
+	if ch.Driver == "wallet" && purchaseOrder != nil {
+		if err := authorizeWalletPayment(ctx, purchaseOrder); err != nil {
+			return nil, err
+		}
 	}
-	if ch.Driver == "bepusdt" && orderID > 0 {
-		old, e := data.Client(ctx, s.data).Payment.Query().Where(payment.ChannelID(ch.ID), payment.OrderID(orderID)).Order(ent.Desc(payment.FieldID)).First(ctx)
+	if isNativeCryptoDriver(ch.Driver) && orderID > 0 {
+		old, e := s.repo.nativeAttempt(ctx, data.Client(ctx, s.data).Payment.Query().Where(payment.ChannelID(ch.ID), payment.OrderID(orderID), payment.DriverSnapshot(ch.Driver)), ch, req.GetMethod())
 		if e == nil {
 			if old.Status != payment.StatusPending || !time.Now().Before(old.ExpiresAt) {
 				return nil, errors.BadRequest("payment.ORDER_EXPIRED", "支付已关闭或过期，请重新下单")

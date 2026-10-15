@@ -25,9 +25,11 @@ import (
 	"github.com/NovaWorks/zcard-next/server/internal/data/ent/paymentchannel"
 	"github.com/NovaWorks/zcard-next/server/internal/data/ent/refundorder"
 	"github.com/NovaWorks/zcard-next/server/internal/mods/identity"
+	"github.com/NovaWorks/zcard-next/server/internal/mods/payment/adapter"
 	"github.com/NovaWorks/zcard-next/server/internal/mods/payment/port"
 	walletport "github.com/NovaWorks/zcard-next/server/internal/mods/wallet/port"
 	"github.com/NovaWorks/zcard-next/server/internal/platform/money"
+	"github.com/NovaWorks/zcard-next/server/internal/platform/tenancy"
 
 	"github.com/go-kratos/kratos/v3/errors"
 	khttp "github.com/go-kratos/kratos/v3/transport/http"
@@ -347,10 +349,29 @@ func (s *AdminPaymentService) CapturePayment(ctx context.Context, req *adminv1.C
 	if !ok {
 		return nil, errors.BadRequest("payment.CAPTURE_UNSUPPORTED", "渠道不支持主动查单，请到网关核对到账")
 	}
-	if p.ChannelOrderNo == "" {
-		return nil, errors.BadRequest("payment.GATEWAY_ORDER_MISSING", "缺少网关单号，请到网关核对到账")
+	var f *port.CallbackFact
+	if orderCapturer, ok := provider.(port.OrderCapturer); ok {
+		ref := p.GatewayOrderRef
+		if ref == "" && p.ChannelOrderNo == "" {
+			if p.OrderID != 0 {
+				ref = s.getOrderNo(ctx, p.OrderID)
+			} else if p.RechargeOrderID != 0 {
+				ref = fmt.Sprintf("RCH%d", p.RechargeOrderID)
+			}
+		}
+		if ref != "" {
+			f, err = orderCapturer.QueryPaymentByOrderNo(ctx, ref, s.repo.DecryptConfig(ch))
+		} else if p.ChannelOrderNo != "" {
+			f, err = capr.QueryPayment(ctx, p.ChannelOrderNo, s.repo.DecryptConfig(ch))
+		} else {
+			return nil, errors.BadRequest("payment.GATEWAY_ORDER_MISSING", "缺少可查询订单号，请到网关核对到账")
+		}
+	} else {
+		if p.ChannelOrderNo == "" {
+			return nil, errors.BadRequest("payment.GATEWAY_ORDER_MISSING", "缺少网关单号，请到网关核对到账")
+		}
+		f, err = capr.QueryPayment(ctx, p.ChannelOrderNo, s.repo.DecryptConfig(ch))
 	}
-	f, err := capr.QueryPayment(ctx, p.ChannelOrderNo, s.repo.DecryptConfig(ch))
 	if err != nil {
 		return nil, errors.InternalServer("payment.CAPTURE_FAILED", "查单失败: "+err.Error())
 	}
@@ -367,12 +388,23 @@ func (s *AdminPaymentService) CapturePayment(ctx context.Context, req *adminv1.C
 
 // CreateRefund 创建退款单。
 func (s *AdminPaymentService) CreateRefund(ctx context.Context, req *adminv1.CreateRefundRequest) (*adminv1.RefundOrder, error) {
-	o, err := data.Client(ctx, s.data).Order.Query().Where(order.OrderNo(req.GetOrderNo())).Only(ctx)
+	o, err := data.Client(ctx, s.data).Order.Query().Where(order.OrderNo(req.GetOrderNo()), order.SubsiteID(tenancy.FromContext(ctx).SubsiteID)).Only(ctx)
 	if ent.IsNotFound(err) {
 		return nil, errors.NotFound("order.NOT_FOUND", "订单不存在")
 	}
 	if err != nil {
 		return nil, err
+	}
+	if o.CommerceVersion == 1 {
+		var actor uint64
+		if cl := identity.ClaimsFromContext(ctx); cl != nil {
+			actor = cl.Subject
+		}
+		rf, e := s.repo.RefundPhysical(ctx, o.ID, actor, req)
+		if e != nil {
+			return nil, e
+		}
+		return ToRefundPB(rf, o.OrderNo), nil
 	}
 	if req.GetChannel() != "wallet" {
 		return nil, errors.BadRequest("payment.REFUND_CHANNEL_UNSUPPORTED", "当前仅支持自动退至会员余额；原路或上游退款请先向渠道核实")
@@ -390,7 +422,7 @@ func (s *AdminPaymentService) CreateRefund(ctx context.Context, req *adminv1.Cre
 
 // ListRefunds 退款列表。
 func (s *AdminPaymentService) ListRefunds(ctx context.Context, req *adminv1.ListRefundsRequest) (*adminv1.ListRefundsReply, error) {
-	rows, err := s.repo.ListRefunds(ctx, req.GetStatus())
+	rows, err := s.repo.ListRefunds(ctx, req.GetStatus(), req)
 	if err != nil {
 		return nil, errors.InternalServer("payment.LIST_FAILED", "读取退款失败")
 	}
@@ -479,10 +511,17 @@ func (s *StorePaymentService) ListChannels(ctx context.Context, req *storefrontv
 	if err != nil {
 		return nil, errors.InternalServer("payment.LIST_FAILED", "读取渠道失败")
 	}
+	baseCurrency, err := data.BaseCurrency(ctx, s.data)
+	if err != nil {
+		return nil, err
+	}
 	// 游客判定：无登录 claims（余额支付依赖钱包账户）
 	guest := identity.ClaimsFromContext(ctx) == nil
 	reply := &storefrontv1.ChannelListReply{}
 	for _, ch := range rows {
+		if _, err := chargeCurrency(ch.Driver, s.repo.DecryptConfig(ch), baseCurrency); err != nil {
+			continue
+		}
 		if !channelAllows(ch, scene) {
 			continue
 		}
@@ -493,7 +532,17 @@ func (s *StorePaymentService) ListChannels(ctx context.Context, req *storefrontv
 			continue // 待配置渠道不下发
 		}
 		item := &storefrontv1.ChannelItem{Code: ch.Code, Name: paymentChannelName(ch), Driver: ch.Driver, Icon: ch.Icon, Fee: ch.Fee, FeeType: string(ch.FeeType), FeeBearer: string(ch.FeeBearer), Recommended: ch.Recommended, RecommendLabel: ch.RecommendLabel, RecommendDescription: ch.RecommendDescription}
-		for _, m := range parseMethods(ch) {
+		methods := parseMethods(ch)
+		if ch.Driver == "upay" {
+			cfg, e := adapter.ParseUpayConfig(s.repo.DecryptConfig(ch))
+			if e != nil {
+				continue
+			}
+			for _, option := range cfg.Options() {
+				methods = append(methods, ChannelMethod{Code: option.Value, Name: option.Label, Enabled: true})
+			}
+		}
+		for _, m := range methods {
 			if !m.Enabled || !m.ChannelUsage.allows(scene) {
 				continue
 			}
@@ -516,10 +565,7 @@ func (s *StorePaymentService) CreatePayment(ctx context.Context, req *storefront
 	client := data.Client(ctx, s.data)
 
 	// 查订单
-	o, err := client.Order.Query().Where(order.OrderNo(req.GetOrderNo())).Only(ctx)
-	if ent.IsNotFound(err) {
-		return nil, errors.NotFound("order.NOT_FOUND", "订单不存在")
-	}
+	o, err := s.paymentOrder(ctx, req.GetOrderNo(), req.GetQueryPassword(), req.GetOrderAccessToken())
 	if err != nil {
 		return nil, err
 	}
@@ -543,18 +589,21 @@ func (s *StorePaymentService) CreatePayment(ctx context.Context, req *storefront
 	if !ch.Enabled {
 		return nil, errors.BadRequest("payment.CHANNEL_DISABLED", "支付渠道已停用")
 	}
-	if err := checkPaymentUsage(ch, req.GetMethod(), scenePurchase); err != nil {
+	if err := s.repo.checkPaymentUsage(ch, req.GetMethod(), scenePurchase); err != nil {
 		return nil, errors.BadRequest("payment.SCENE_DISABLED", err.Error())
 	}
 	// wallet 渠道：余额支付（直接 markPaid—— 接 wallet.DebitInTx）
 	if ch.Driver == "wallet" {
+		if err := authorizeWalletPayment(ctx, o); err != nil {
+			return nil, err
+		}
 		p, err := s.repo.CreatePayment(ctx, o.ID, ch.Code, o.TotalAmount, "", req.GetMethod())
 		if err != nil {
 			return nil, paymentCreationError(err)
 		}
 		// 直接标记成功
 		fact := CallbackFact{
-			Channel: ch.Code, Amount: o.TotalAmount, Currency: "CNY",
+			Channel: ch.Code, Amount: o.TotalAmount, Currency: orderBaseCurrency(o),
 			Success: true, ChannelOrderNo: fmt.Sprintf("wallet-%d", p.ID),
 		}
 		if err := s.repo.HandleCallback(ctx, p.ID, fact); err != nil {
@@ -597,7 +646,7 @@ func (s *StorePaymentService) CreatePayment(ctx context.Context, req *storefront
 			return nil, errors.BadRequest("payment.METHOD_INVALID", "请选择该渠道支持的支付方式")
 		}
 	}
-	if ch.Driver == "bepusdt" {
+	if isNativeCryptoDriver(ch.Driver) {
 		info, err := s.repo.createBepusdtPayment(ctx, ch.ID, o.ID, 0, req.GetMethod())
 		if err != nil {
 			return nil, errors.BadRequest("payment.CREATE_FAILED", err.Error())
@@ -710,8 +759,8 @@ func RegisterPaymentCallback(srv *khttp.Server, repo *PaymentRepoImpl, d *data.D
 				return ctx.JSON(http.StatusUnauthorized, map[string]string{"error": "verify failed"})
 			}
 		}
-		if !f.Success && ch.Driver != "bepusdt" {
-			if ch.Driver == "xunhupay" {
+		if !f.Success && !isNativeCryptoDriver(ch.Driver) {
+			if ch.Driver == "xunhupay" || ch.Driver == "alipay" {
 				return ctx.String(http.StatusOK, "success")
 			}
 			return ctx.JSON(http.StatusOK, map[string]string{"status": "ignored"})
@@ -719,8 +768,8 @@ func RegisterPaymentCallback(srv *khttp.Server, repo *PaymentRepoImpl, d *data.D
 
 		// 6) 定位支付单（订单号定位；充值单 RCH<id> 前缀走 recharge 关联）
 		paymentID := uint64(0)
-		if ch.Driver == "bepusdt" {
-			matched, lookupErr := data.Client(ctx, d).Payment.Query().Where(payment.ChannelID(ch.ID), payment.DriverSnapshot("bepusdt"), payment.GatewayOrderRef(f.GatewayOrderRef)).Only(ctx)
+		if isNativeCryptoDriver(ch.Driver) {
+			matched, lookupErr := data.Client(ctx, d).Payment.Query().Where(payment.ChannelID(ch.ID), payment.DriverSnapshot(ch.Driver), payment.GatewayOrderRef(f.GatewayOrderRef)).Only(ctx)
 			if lookupErr == nil {
 				paymentID = matched.ID
 			}

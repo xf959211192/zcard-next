@@ -92,6 +92,9 @@ func (s *ProcureService) OnOrderPaid(ctx context.Context, env events.Envelope) e
 			continue // 本地卡密项由 fulfillment 模块履约
 		}
 		if err := s.processItem(ctx, payload, it.OrderItemID, it.ProductID, it.SkuID, it.Quantity); err != nil {
+			if errors.Is(err, ErrOrderNotPurchasable) {
+				continue
+			}
 			// 单条失败不阻断其余（错误留痕，重试由轮询/人工兜底）
 			s.log.Error("procurement.process_item_failed",
 				"order_no", payload.OrderNo, "order_item_id", it.OrderItemID, "err", err)
@@ -105,6 +108,13 @@ func (s *ProcureService) OnOrderPaid(ctx context.Context, env events.Envelope) e
 
 // processItem 单上游项采购编排（幂等：已存在采购单直接跳过）。
 func (s *ProcureService) processItem(ctx context.Context, payload orderPaidPayload, orderItemID, productID, skuID uint64, quantity int32) error {
+	it, e := data.Client(ctx, s.repo.data).OrderItem.Get(ctx, orderItemID)
+	if e != nil {
+		return e
+	}
+	if it.DeliveryKind != "card" {
+		return fmt.Errorf("接码订单不能使用卡密采购")
+	}
 	// 幂等：该订单项已建采购单（重复投递 / 手动重试）
 	if _, err := s.repo.GetByOrderItem(ctx, orderItemID); err == nil {
 		return nil
@@ -129,7 +139,7 @@ func (s *ProcureService) processItem(ctx context.Context, payload orderPaidPaylo
 			failStrategy = fs
 		}
 	}
-	po, err := s.repo.CreatePending(ctx, orderItemID, p.UpstreamSourceID, p.UpstreamProductCode, quantity, failStrategy, payload.OrderNo)
+	po, err := s.repo.claimPurchase(ctx, orderItemID, p.UpstreamSourceID, p.UpstreamProductCode, quantity, failStrategy, payload.OrderNo)
 	if err != nil {
 		if errors.Is(err, ErrDuplicatePurchase) {
 			return nil // 并发已建

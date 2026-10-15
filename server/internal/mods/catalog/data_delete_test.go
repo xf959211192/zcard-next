@@ -27,7 +27,8 @@ func deleteFixture(t *testing.T, status order.Status) (*data.Data, *AdminCatalog
 func TestDeleteProductKeepsHistoryAndBlocksResurrection(t *testing.T) {
 	d, s, p, o, _ := deleteFixture(t, order.StatusCompleted)
 	ctx := context.Background()
-	d.Client.Product.UpdateOneID(p.ID).SetUpstreamSourceID(1).SetUpstreamProductCode("old-code").ExecX(ctx)
+	cover := d.Client.Media.Create().SetName("history-cover").SetPath("history.png").SetMime("image/png").SetSize(1).SetSha256("history-cover").SetRefCount(1).SaveX(ctx)
+	d.Client.Product.UpdateOneID(p.ID).SetUpstreamSourceID(1).SetUpstreamProductCode("old-code").SetCover("/uploads/history.png").ExecX(ctx)
 	ca := d.Client.Card.Create().SetProductID(p.ID).SetContent([]byte("cipher")).SetContentHash("old").SetStatus(card.StatusUsed).SetOrderID(o.ID).SaveX(ctx)
 	pre, err := s.PreviewDeleteProduct(ctx, &adminv1.GetProductRequest{Id: p.ID})
 	if err != nil || pre.OrderCount != 1 || pre.DeleteBlockReason != "" {
@@ -52,6 +53,9 @@ func TestDeleteProductKeepsHistoryAndBlocksResurrection(t *testing.T) {
 	if string(d.Client.Product.GetX(ctx, p.ID).DirectContent) != "encrypted-content" || d.Client.Card.GetX(ctx, ca.ID).OrderID != o.ID {
 		t.Fatal("historical fulfillment damaged")
 	}
+	if d.Client.Media.GetX(ctx, cover.ID).RefCount != 1 {
+		t.Fatal("historical cover is no longer protected from media cleanup")
+	}
 	if n, err := s.repo.BatchUpdateStatus(ctx, []uint64{p.ID}, 1); err != nil || n != 0 {
 		t.Fatalf("batch revived %d %v", n, err)
 	}
@@ -71,7 +75,7 @@ func TestDeleteProductKeepsHistoryAndBlocksResurrection(t *testing.T) {
 		t.Fatal("missing sync revived")
 	}
 }
-func TestDeleteProductPurgesOrdersAndKeepsPaymentAnchor(t *testing.T) {
+func TestDeleteProductRejectsOrderPurgeAndKeepsHistory(t *testing.T) {
 	d, s, p, o, it := deleteFixture(t, order.StatusCompleted)
 	ctx := context.Background()
 	ca := d.Client.Card.Create().SetProductID(p.ID).SetContent([]byte("cipher")).SetContentHash("old").SetStatus(card.StatusUsed).SetOrderID(o.ID).SaveX(ctx)
@@ -95,26 +99,28 @@ func TestDeleteProductPurgesOrdersAndKeepsPaymentAnchor(t *testing.T) {
 		t.Fatal("wrong confirmation accepted")
 	}
 	req.ConfirmName = p.Name
+	if _, err := s.DeleteProduct(ctx, req); err == nil {
+		t.Fatal("legacy client purged order history")
+	}
+	req.DeleteOrders = false
 	if _, err := s.DeleteProduct(ctx, req); err != nil {
 		t.Fatal(err)
 	}
-	if d.Client.Order.Query().CountX(ctx) != 0 || d.Client.OrderItem.Query().CountX(ctx) != 0 || d.Client.OrderDelivery.Query().CountX(ctx) != 0 || d.Client.Card.Query().CountX(ctx) != 0 || d.Client.RefundOrder.Query().CountX(ctx) != 0 || d.Client.ProcurementOrder.Query().CountX(ctx) != 0 || d.Client.ProcurementItem.Query().CountX(ctx) != 0 || d.Client.OrderAmountLine.Query().CountX(ctx) != 0 || d.Client.OrderStatusEvent.Query().CountX(ctx) != 0 {
-		t.Fatal("order children left behind")
+	if d.Client.Order.Query().CountX(ctx) != 1 || d.Client.OrderItem.Query().CountX(ctx) != 1 || d.Client.OrderDelivery.Query().CountX(ctx) != 1 || d.Client.Card.Query().CountX(ctx) != 1 || d.Client.RefundOrder.Query().CountX(ctx) != 1 || d.Client.ProcurementOrder.Query().CountX(ctx) != 1 || d.Client.ProcurementItem.Query().CountX(ctx) != 1 || d.Client.OrderAmountLine.Query().CountX(ctx) != 1 || d.Client.OrderStatusEvent.Query().CountX(ctx) != 1 {
+		t.Fatal("history was removed")
 	}
-	if got := d.Client.Payment.GetX(ctx, pay.ID); got.OrderID != 0 || got.ChannelOrderNo != "upstream-paid" || got.Status != "success" {
+	if got := d.Client.Payment.GetX(ctx, pay.ID); got.OrderID != o.ID || got.ChannelOrderNo != "upstream-paid" || got.Status != "success" {
 		t.Fatal("payment anchor corrupted")
 	}
+
 }
 func TestDeleteProductGuards(t *testing.T) {
 	cases := []struct {
 		name   string
 		modify func(context.Context, *data.Data, *ent.Product, *ent.Order)
 	}{
-		{"onshelf", func(c context.Context, d *data.Data, p *ent.Product, o *ent.Order) {
-			d.Client.Product.UpdateOneID(p.ID).SetStatus(1).ExecX(c)
-		}},
-		{"hidden", func(c context.Context, d *data.Data, p *ent.Product, o *ent.Order) {
-			d.Client.Product.UpdateOneID(p.ID).SetStatus(2).ExecX(c)
+		{"locked", func(c context.Context, d *data.Data, p *ent.Product, o *ent.Order) {
+			d.Client.Product.UpdateOneID(p.ID).SetIsLocked(true).ExecX(c)
 		}},
 		{"foreign", func(c context.Context, d *data.Data, p *ent.Product, o *ent.Order) {
 			d.Client.Product.UpdateOneID(p.ID).SetSubsiteID(99).ExecX(c)
@@ -128,8 +134,8 @@ func TestDeleteProductGuards(t *testing.T) {
 		{"refund", func(c context.Context, d *data.Data, p *ent.Product, o *ent.Order) {
 			d.Client.RefundOrder.Create().SetOrderID(o.ID).SetAmount(100).SetChannel("gateway").SetStatus("processing").SaveX(c)
 		}},
-		{"stock", func(c context.Context, d *data.Data, p *ent.Product, o *ent.Order) {
-			d.Client.Card.Create().SetProductID(p.ID).SetContent([]byte("cipher")).SetContentHash("unused").SetStatus(card.StatusAvailable).SaveX(c)
+		{"reserved-stock", func(c context.Context, d *data.Data, p *ent.Product, o *ent.Order) {
+			d.Client.Card.Create().SetProductID(p.ID).SetContent([]byte("cipher")).SetContentHash("reserved").SetStatus(card.StatusReserved).SaveX(c)
 		}},
 	}
 	for _, tt := range cases {
@@ -137,11 +143,26 @@ func TestDeleteProductGuards(t *testing.T) {
 			d, s, p, o, _ := deleteFixture(t, order.StatusCompleted)
 			ctx := context.Background()
 			tt.modify(ctx, d, p, o)
-			for _, purge := range []bool{false, true} {
-				if _, err := s.DeleteProduct(ctx, &adminv1.DeleteProductRequest{Id: p.ID, DeleteOrders: purge, ConfirmName: p.Name, ExpectedOrderCount: 1}); err == nil {
-					t.Fatal("unsafe deletion allowed")
+			if _, err := s.DeleteProduct(ctx, &adminv1.DeleteProductRequest{Id: p.ID, DeleteOrders: true}); err == nil {
+				t.Fatal("history purge allowed")
+			}
+			_, err := s.DeleteProduct(ctx, &adminv1.DeleteProductRequest{Id: p.ID})
+			if tt.name == "foreign" {
+				if err == nil {
+					t.Fatal("cross-tenant deletion allowed")
+				}
+			} else {
+				if err != nil {
+					t.Fatal("history-preserving deletion blocked", err)
+				}
+				if d.Client.Product.GetX(ctx, p.ID).Status != -1 {
+					t.Fatal("product remains live")
+				}
+				if tt.name == "reserved-stock" && d.Client.Card.Query().OnlyX(ctx).Status != card.StatusReserved {
+					t.Fatal("reserved card lost")
 				}
 			}
+
 			if d.Client.Order.Query().CountX(ctx) != 1 {
 				t.Fatal("blocked deletion removed order")
 			}
@@ -180,10 +201,15 @@ func TestDeleteProductHTTPQueryConfirmation(t *testing.T) {
 	params := url.Values{"delete_orders": {"true"}, "confirm_name": {p.Name}, "expected_order_count": {"1"}}
 	w = httptest.NewRecorder()
 	server.ServeHTTP(w, httptest.NewRequest("DELETE", fmt.Sprintf("/api/v1/admin/products/%d?%s", p.ID, params.Encode()), nil))
+	if w.Code != 400 {
+		t.Fatalf("legacy purge HTTP %d %s", w.Code, w.Body.String())
+	}
+	w = httptest.NewRecorder()
+	server.ServeHTTP(w, httptest.NewRequest("DELETE", fmt.Sprintf("/api/v1/admin/products/%d", p.ID), nil))
 	if w.Code != 200 {
 		t.Fatalf("delete HTTP %d %s", w.Code, w.Body.String())
 	}
-	if d.Client.Order.Query().CountX(context.Background()) != 0 {
-		t.Fatal("query fields not bound; orders still present")
+	if d.Client.Order.Query().CountX(context.Background()) != 1 {
+		t.Fatal("history was purged")
 	}
 }

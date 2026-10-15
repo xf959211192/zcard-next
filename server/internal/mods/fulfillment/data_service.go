@@ -5,6 +5,7 @@ package fulfillment
 import (
 	"context"
 	"encoding/json"
+	"github.com/NovaWorks/zcard-next/server/internal/platform/orderaccess"
 
 	adminv1 "github.com/NovaWorks/zcard-next/server/api/admin/v1"
 	storefrontv1 "github.com/NovaWorks/zcard-next/server/api/storefront/v1"
@@ -15,7 +16,6 @@ import (
 	"github.com/NovaWorks/zcard-next/server/internal/mods/identity"
 
 	"github.com/go-kratos/kratos/v3/errors"
-	"github.com/go-kratos/kratos/v3/transport"
 	khttp "github.com/go-kratos/kratos/v3/transport/http"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -35,12 +35,12 @@ func NewStoreDeliveryService(repo *DeliveryRepoImpl) *StoreDeliveryService {
 
 // FetchDelivery 取货（三重门——密码错误与单号不存在响应一致）。
 func (s *StoreDeliveryService) FetchDelivery(ctx context.Context, req *storefrontv1.FetchDeliveryRequest) (*storefrontv1.FetchDeliveryReply, error) {
-	if req.GetOrderNo() == "" || req.GetQueryPassword() == "" {
+	if req.GetOrderNo() == "" || (req.GetQueryPassword() == "" && identity.ClaimsFromContext(ctx) == nil) {
 		return nil, errors.BadRequest("delivery.INVALID_INPUT", "订单号与查询密码必填")
 	}
 	res, err := s.repo.FetchDelivery(ctx, req.GetOrderNo(), req.GetQueryPassword(), clientIP(ctx))
 	if err != nil {
-		return nil, errors.NotFound("order.NOT_FOUND", "订单不存在或密码错误")
+		return nil, orderaccess.PublicError(err)
 	}
 	reply := &storefrontv1.FetchDeliveryReply{
 		OrderNo: res.OrderNo, Status: res.Status, FetchCount: res.FetchCnt,
@@ -72,7 +72,7 @@ func NewAdminFulfillmentService(repo *DeliveryRepoImpl, d *data.Data) *AdminFulf
 	return &AdminFulfillmentService{repo: repo, data: d}
 }
 
-// ListPending 待人工发货列表。
+// ListPending 待快递发货及人工交付列表。
 func (s *AdminFulfillmentService) ListPending(ctx context.Context, req *adminv1.ListPendingRequest) (*adminv1.ListPendingReply, error) {
 	page := int(req.GetPage())
 	size := int(req.GetPageSize())
@@ -82,7 +82,7 @@ func (s *AdminFulfillmentService) ListPending(ctx context.Context, req *adminv1.
 	if size < 1 || size > 100 {
 		size = 20
 	}
-	rows, err := s.repo.ListPending(ctx, page, size)
+	rows, hasMore, err := s.repo.ListPending(ctx, page, size)
 	if err != nil {
 		return nil, errors.InternalServer("fulfillment.LIST_FAILED", "读取待发货失败")
 	}
@@ -94,10 +94,10 @@ func (s *AdminFulfillmentService) ListPending(ctx context.Context, req *adminv1.
 		}
 	}
 	names, _ := s.repo.ProductNames(ctx, ids)
-	reply := &adminv1.ListPendingReply{}
+	reply := &adminv1.ListPendingReply{HasMore: hasMore}
 	for _, o := range rows {
 		for _, it := range o.Edges.Items {
-			if it.FulfillmentStatus == "delivered" || it.FulfillmentStatus == "refunded" {
+			if it.GoodsType != "physical" && (it.FulfillmentStatus == "delivered" || it.FulfillmentStatus == "refunded") {
 				continue
 			}
 
@@ -106,7 +106,11 @@ func (s *AdminFulfillmentService) ListPending(ctx context.Context, req *adminv1.
 				name = names[it.ProductID]
 			}
 			raw, _ := json.Marshal(it.FormAnswers)
-			reply.Orders = append(reply.Orders, &adminv1.PendingOrder{OrderNo: o.OrderNo, ProductId: it.ProductID, ProductName: name, Quantity: it.Quantity, CreatedAt: o.CreatedAt.Unix(), OrderItemId: it.ID, SkuName: it.SkuName, FormAnswersJson: string(raw), FulfillmentStatus: it.FulfillmentStatus, AssignedAdminId: it.AssignedAdminID})
+			quantity := it.Quantity - it.CanceledQuantity
+			if it.GoodsType == "physical" {
+				quantity -= it.ShippedQuantity
+			}
+			reply.Orders = append(reply.Orders, &adminv1.PendingOrder{OrderNo: o.OrderNo, ProductId: it.ProductID, ProductName: name, Quantity: quantity, CreatedAt: o.CreatedAt.Unix(), OrderItemId: it.ID, SkuName: it.SkuName, FormAnswersJson: string(raw), FulfillmentStatus: it.FulfillmentStatus, AssignedAdminId: it.AssignedAdminID, FulfillmentType: string(it.FulfillmentType), GoodsType: string(it.GoodsType)})
 		}
 	}
 	return reply, nil
@@ -246,10 +250,8 @@ func (s *AdminFulfillmentService) getOrderNo(ctx context.Context, orderID uint64
 }
 
 func clientIP(ctx context.Context) string {
-	if tr, ok := transport.FromServerContext(ctx); ok {
-		if hc, ok := tr.(khttp.Context); ok {
-			return hc.Request().RemoteAddr
-		}
+	if r, ok := khttp.RequestFromServerContext(ctx); ok {
+		return r.RemoteAddr
 	}
 	return ""
 }

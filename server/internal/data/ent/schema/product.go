@@ -3,10 +3,12 @@ package schema
 // 所有权：mods/catalog（M1；M0 先落表结构支撑 storefront 列表链路）
 
 import (
+	"context"
 	"entgo.io/ent"
 	"entgo.io/ent/schema/edge"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/index"
+	"fmt"
 )
 
 // Product 商品主表（《数据库架构设计.md》§4.1，字段精确对齐）。
@@ -19,9 +21,25 @@ func (Product) Mixin() []ent.Mixin { return []ent.Mixin{TimeMixin{}, TenantMixin
 func (Product) Fields() []ent.Field {
 	return []ent.Field{
 		field.Uint64("id"),
+		field.String("product_kind").Default("standard"),
+		field.String("delivery_kind").Default("card"),
+		field.JSON("sms_product", map[string]string{}).Optional(),
 		field.Uint64("category_id").Optional().Comment("分类（软外键，仅索引）"),
 		field.Bool("category_protected").Default(false),
 		field.String("name").MaxLen(1024),
+		field.String("goods_type").Default("virtual"),
+		field.String("product_property").Default("").MaxLen(16).Validate(func(v string) error {
+			if v != "" && v != "virtual" && v != "physical" {
+				return fmt.Errorf("商品属性无效")
+			}
+			return nil
+		}).Comment("商品属性；goods_type 为旧客户端兼容镜像"),
+		field.Bool("track_inventory").Default(true).Comment("实体商品是否管理数量库存；规格继承"),
+		field.Bool("sales_visible").Default(true).Comment("是否向买家显示已售数量"),
+		field.String("shipping_mode").Default("free"),
+		field.Int64("shipping_fee").Default(0),
+		field.JSON("shipping_countries", []string{}).Optional(),
+		field.Int64("physical_stock").Default(0),
 		field.String("slug").MaxLen(150).Comment("唯一标识"),
 		field.Text("description").Optional().Comment("详情（服务端 sanitize 后存储）"),
 		field.String("cover").MaxLen(255).Optional(),
@@ -64,6 +82,35 @@ func (Product) Fields() []ent.Field {
 	}
 }
 
+// Keep legacy writers and the dedicated property column consistent at the storage boundary.
+func (Product) Hooks() []ent.Hook {
+	return []ent.Hook{func(next ent.Mutator) ent.Mutator {
+		return ent.MutateFunc(func(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+			property, hasProperty := m.Field("product_property")
+			legacy, hasLegacy := m.Field("goods_type")
+			p, _ := property.(string)
+			g, _ := legacy.(string)
+			if p != "" && g != "" && p != g && !m.Op().Is(ent.OpCreate) {
+				return nil, fmt.Errorf("商品属性与旧类型不一致")
+			}
+			if p != "" {
+				if err := m.SetField("goods_type", p); err != nil {
+					return nil, err
+				}
+			} else if hasLegacy && g != "" {
+				if err := m.SetField("product_property", g); err != nil {
+					return nil, err
+				}
+			} else if m.Op().Is(ent.OpCreate) || hasProperty {
+				if err := m.SetField("product_property", "virtual"); err != nil {
+					return nil, err
+				}
+			}
+			return next.Mutate(ctx, m)
+		})
+	}}
+}
+
 func (Product) Indexes() []ent.Index {
 	return []ent.Index{
 		index.Fields("subsite_id", "slug").Unique(),
@@ -93,6 +140,7 @@ func (ProductSku) Fields() []ent.Field {
 	return []ent.Field{
 		field.Uint64("id"),
 		field.Uint64("product_id").Comment("所属商品（硬外键 → products）"),
+		field.Int64("physical_stock").Default(0),
 		field.String("name").MaxLen(100).Comment("规格名（如「月卡」）"),
 		field.JSON("spec_values", map[string]string{}).Comment("规格值组合 {规格: 值}"),
 		field.Int64("price").Optional().Comment("独立售价（分，NULL=继承商品价）"),

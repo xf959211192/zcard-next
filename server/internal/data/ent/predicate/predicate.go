@@ -138,6 +138,12 @@ type Payment func(*sql.Selector)
 // PaymentChannel is the predicate function for paymentchannel builders.
 type PaymentChannel func(*sql.Selector)
 
+// PhysicalReturnReceipt is the predicate function for physicalreturnreceipt builders.
+type PhysicalReturnReceipt func(*sql.Selector)
+
+// PhysicalStockMovement is the predicate function for physicalstockmovement builders.
+type PhysicalStockMovement func(*sql.Selector)
+
 // PointAccount is the predicate function for pointaccount builders.
 type PointAccount func(*sql.Selector)
 
@@ -216,6 +222,15 @@ type RiskLockKey func(*sql.Selector)
 // RolePermission is the predicate function for rolepermission builders.
 type RolePermission func(*sql.Selector)
 
+// SMSIntent is the predicate function for smsintent builders.
+type SMSIntent func(*sql.Selector)
+
+// SMSOperation is the predicate function for smsoperation builders.
+type SMSOperation func(*sql.Selector)
+
+// SMSRetailQuote is the predicate function for smsretailquote builders.
+type SMSRetailQuote func(*sql.Selector)
+
 // SecurityAuditLog is the predicate function for securityauditlog builders.
 type SecurityAuditLog func(*sql.Selector)
 
@@ -224,6 +239,9 @@ type Session func(*sql.Selector)
 
 // Setting is the predicate function for setting builders.
 type Setting func(*sql.Selector)
+
+// Shipment is the predicate function for shipment builders.
+type Shipment func(*sql.Selector)
 
 // StockAlert is the predicate function for stockalert builders.
 type StockAlert func(*sql.Selector)

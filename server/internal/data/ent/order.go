@@ -40,8 +40,22 @@ type Order struct {
 	GuestContact string `json:"guest_contact,omitempty"`
 	// QueryPasswordHash holds the value of the "query_password_hash" field.
 	QueryPasswordHash string `json:"query_password_hash,omitempty"`
+	// OrderAccessTokenHash holds the value of the "order_access_token_hash" field.
+	OrderAccessTokenHash string `json:"order_access_token_hash,omitempty"`
+	// 订单访问凭证密文，仅创建重放使用
+	OrderAccessTokenSecret []byte `json:"order_access_token_secret,omitempty"`
 	// 状态机见规划 §5.3；每次迁移落 order_status_events
 	Status order.Status `json:"status,omitempty"`
+	// CommerceVersion holds the value of the "commerce_version" field.
+	CommerceVersion int32 `json:"commerce_version,omitempty"`
+	// ShippingAmount holds the value of the "shipping_amount" field.
+	ShippingAmount int64 `json:"shipping_amount,omitempty"`
+	// ShippingStatus holds the value of the "shipping_status" field.
+	ShippingStatus string `json:"shipping_status,omitempty"`
+	// ShippingAddress holds the value of the "shipping_address" field.
+	ShippingAddress map[string]string `json:"shipping_address,omitempty"`
+	// RequestHash holds the value of the "request_hash" field.
+	RequestHash string `json:"request_hash,omitempty"`
 	// 应付总额（分）
 	TotalAmount int64 `json:"total_amount,omitempty"`
 	// 成本快照（分）
@@ -178,15 +192,15 @@ func (*Order) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case order.FieldRiskFlags, order.FieldExtra:
+		case order.FieldOrderAccessTokenSecret, order.FieldShippingAddress, order.FieldRiskFlags, order.FieldExtra:
 			values[i] = new([]byte)
 		case order.FieldProfitEligible, order.FieldExpiryReview:
 			values[i] = new(sql.NullBool)
 		case order.FieldExchangeRate:
 			values[i] = new(sql.NullFloat64)
-		case order.FieldID, order.FieldSubsiteID, order.FieldVersion, order.FieldSubsiteProfit, order.FieldUserID, order.FieldTotalAmount, order.FieldCost, order.FieldAmountDisplay, order.FieldParentID, order.FieldEscrowID, order.FieldInviteL1, order.FieldInviteL2, order.FieldInviteL3, order.FieldExpiryAttempts:
+		case order.FieldID, order.FieldSubsiteID, order.FieldVersion, order.FieldSubsiteProfit, order.FieldUserID, order.FieldCommerceVersion, order.FieldShippingAmount, order.FieldTotalAmount, order.FieldCost, order.FieldAmountDisplay, order.FieldParentID, order.FieldEscrowID, order.FieldInviteL1, order.FieldInviteL2, order.FieldInviteL3, order.FieldExpiryAttempts:
 			values[i] = new(sql.NullInt64)
-		case order.FieldOrderNo, order.FieldSubsiteDomain, order.FieldGuestContact, order.FieldQueryPasswordHash, order.FieldStatus, order.FieldBaseCurrency, order.FieldDisplayCurrency, order.FieldPaymentChannel, order.FieldContact, order.FieldClientIP, order.FieldRiskIP, order.FieldIdempotencyKey, order.FieldExpiryReason:
+		case order.FieldOrderNo, order.FieldSubsiteDomain, order.FieldGuestContact, order.FieldQueryPasswordHash, order.FieldOrderAccessTokenHash, order.FieldStatus, order.FieldShippingStatus, order.FieldRequestHash, order.FieldBaseCurrency, order.FieldDisplayCurrency, order.FieldPaymentChannel, order.FieldContact, order.FieldClientIP, order.FieldRiskIP, order.FieldIdempotencyKey, order.FieldExpiryReason:
 			values[i] = new(sql.NullString)
 		case order.FieldCreatedAt, order.FieldUpdatedAt, order.FieldPaidAt, order.FieldClosedAt, order.FieldAdminDeletedAt, order.FieldExpiredAt, order.FieldExpiryRetryAt:
 			values[i] = new(sql.NullTime)
@@ -277,11 +291,55 @@ func (_m *Order) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.QueryPasswordHash = value.String
 			}
+		case order.FieldOrderAccessTokenHash:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field order_access_token_hash", values[i])
+			} else if value.Valid {
+				_m.OrderAccessTokenHash = value.String
+			}
+		case order.FieldOrderAccessTokenSecret:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field order_access_token_secret", values[i])
+			} else if value != nil {
+				_m.OrderAccessTokenSecret = *value
+			}
 		case order.FieldStatus:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field status", values[i])
 			} else if value.Valid {
 				_m.Status = order.Status(value.String)
+			}
+		case order.FieldCommerceVersion:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field commerce_version", values[i])
+			} else if value.Valid {
+				_m.CommerceVersion = int32(value.Int64)
+			}
+		case order.FieldShippingAmount:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field shipping_amount", values[i])
+			} else if value.Valid {
+				_m.ShippingAmount = value.Int64
+			}
+		case order.FieldShippingStatus:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field shipping_status", values[i])
+			} else if value.Valid {
+				_m.ShippingStatus = value.String
+			}
+		case order.FieldShippingAddress:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field shipping_address", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.ShippingAddress); err != nil {
+					return fmt.Errorf("unmarshal field shipping_address: %w", err)
+				}
+			}
+		case order.FieldRequestHash:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field request_hash", values[i])
+			} else if value.Valid {
+				_m.RequestHash = value.String
 			}
 		case order.FieldTotalAmount:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -543,8 +601,29 @@ func (_m *Order) String() string {
 	builder.WriteString("query_password_hash=")
 	builder.WriteString(_m.QueryPasswordHash)
 	builder.WriteString(", ")
+	builder.WriteString("order_access_token_hash=")
+	builder.WriteString(_m.OrderAccessTokenHash)
+	builder.WriteString(", ")
+	builder.WriteString("order_access_token_secret=")
+	builder.WriteString(fmt.Sprintf("%v", _m.OrderAccessTokenSecret))
+	builder.WriteString(", ")
 	builder.WriteString("status=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Status))
+	builder.WriteString(", ")
+	builder.WriteString("commerce_version=")
+	builder.WriteString(fmt.Sprintf("%v", _m.CommerceVersion))
+	builder.WriteString(", ")
+	builder.WriteString("shipping_amount=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ShippingAmount))
+	builder.WriteString(", ")
+	builder.WriteString("shipping_status=")
+	builder.WriteString(_m.ShippingStatus)
+	builder.WriteString(", ")
+	builder.WriteString("shipping_address=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ShippingAddress))
+	builder.WriteString(", ")
+	builder.WriteString("request_hash=")
+	builder.WriteString(_m.RequestHash)
 	builder.WriteString(", ")
 	builder.WriteString("total_amount=")
 	builder.WriteString(fmt.Sprintf("%v", _m.TotalAmount))

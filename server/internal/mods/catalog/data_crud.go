@@ -16,12 +16,15 @@ import (
 	"github.com/NovaWorks/zcard-next/server/internal/data/ent/category"
 	"github.com/NovaWorks/zcard-next/server/internal/data/ent/product"
 	"github.com/NovaWorks/zcard-next/server/internal/data/ent/productsku"
+	"github.com/NovaWorks/zcard-next/server/internal/data/ent/supplierproductprice"
+	"github.com/NovaWorks/zcard-next/server/internal/data/ent/supplymapping"
 	"github.com/NovaWorks/zcard-next/server/internal/data/ent/tag"
 	"github.com/NovaWorks/zcard-next/server/internal/mods/catalog/port"
 	mediamods "github.com/NovaWorks/zcard-next/server/internal/mods/media"
 	"github.com/NovaWorks/zcard-next/server/internal/platform/db"
 	"github.com/NovaWorks/zcard-next/server/internal/platform/sanitize"
 	"github.com/NovaWorks/zcard-next/server/internal/platform/tenancy"
+	"google.golang.org/protobuf/proto"
 )
 
 // ── 商品 ─────────────────────────────────────────────────────
@@ -116,7 +119,7 @@ func (r *ProductRepoImpl) ListAdmin(ctx context.Context, f port.AdminFilter) ([]
 		q = q.Offset((int(f.Page) - 1) * int(f.PageSize)).Limit(int(f.PageSize))
 	}
 	if f.OptionsOnly {
-		q.Select(product.FieldID, product.FieldName, product.FieldCategoryID, product.FieldPrice, product.FieldStockType, product.FieldSort, product.FieldIsLocked, product.FieldLockVersion, product.FieldStatus, product.FieldCover, product.FieldUpstreamSourceID)
+		q.Select(product.FieldID, product.FieldName, product.FieldCategoryID, product.FieldPrice, product.FieldStockType, product.FieldGoodsType, product.FieldProductProperty, product.FieldSalesVisible, product.FieldTrackInventory, product.FieldSort, product.FieldIsLocked, product.FieldLockVersion, product.FieldStatus, product.FieldCover, product.FieldUpstreamSourceID)
 	}
 	rows, err := q.All(ctx)
 	return rows, int64(total), err
@@ -179,6 +182,9 @@ func (r *ProductRepoImpl) GetAdmin(ctx context.Context, subsiteID, id uint64) (*
 
 // CreateProduct 创建商品（description 已 sanitize）。
 func (r *ProductRepoImpl) createProduct(ctx context.Context, in port.ProductInput) (*ent.Product, error) {
+	if err := r.validatePhysicalProduct(ctx, nil, &in); err != nil {
+		return nil, err
+	}
 	if in.FulfillmentMode == "local" || in.FulfillmentMode == "reuse" {
 		return nil, fmt.Errorf("请先创建商品，再配置发货来源")
 	}
@@ -197,6 +203,8 @@ func (r *ProductRepoImpl) createProduct(ctx context.Context, in port.ProductInpu
 		SetPrice(in.Price).
 		SetFactoryPrice(in.FactoryPrice).
 		SetStockType(product.StockType(in.StockType))
+	create.SetNillableGoodsType(in.GoodsType).SetNillableShippingMode(in.ShippingMode).SetNillableShippingFee(in.ShippingFee).SetNillablePhysicalStock(in.PhysicalStock).SetShippingCountries(in.ShippingCountries)
+	create.SetNillableProductProperty(in.ProductProperty).SetNillableSalesVisible(in.SalesVisible).SetNillableTrackInventory(in.TrackInventory)
 	if in.FulfillmentMode != "" {
 		create.SetFulfillmentMode(in.FulfillmentMode)
 	}
@@ -228,6 +236,7 @@ func (r *ProductRepoImpl) createProduct(ctx context.Context, in port.ProductInpu
 // SetDirectContent 回填直发内容密文（创建后由 service 按真实 productID 加密调用）。
 func (r *ProductRepoImpl) SetDirectContent(ctx context.Context, id uint64, ciphered []byte) error {
 	return data.Client(ctx, r.data).Product.UpdateOneID(id).
+		Where(product.GoodsTypeNEQ("physical")).
 		SetDirectContent(ciphered).Exec(ctx)
 }
 
@@ -235,6 +244,14 @@ func (r *ProductRepoImpl) SetDirectContent(ctx context.Context, id uint64, ciphe
 func (r *ProductRepoImpl) updateProduct(ctx context.Context, id uint64, in port.ProductInput) (*ent.Product, error) {
 	current, err := data.Client(ctx, r.data).Product.Get(ctx, id)
 	if err != nil {
+		return nil, err
+	}
+	if current.ProductKind == "sms_channel" {
+		if in.GoodsType != nil && *in.GoodsType != "virtual" || in.StockType != "" && in.StockType != "card" || in.FulfillmentMode != "" && in.FulfillmentMode != "auto" || in.Price > 0 || in.FactoryPrice > 0 || in.PointsRequired > 0 || len(in.DirectContent) > 0 {
+			return nil, fmt.Errorf("渠道接码商品请在货源导入/映射中设置加价，不能改为普通商品或本地发货")
+		}
+	}
+	if err := r.validatePhysicalProduct(ctx, current, &in); err != nil {
 		return nil, err
 	}
 	if in.StockType != "" && in.StockType != string(current.StockType) {
@@ -264,6 +281,27 @@ func (r *ProductRepoImpl) updateProduct(ctx context.Context, id uint64, in port.
 		}
 	}
 	q := data.Client(ctx, r.data).Product.UpdateOneID(id).Where(product.StatusGTE(0), product.SubsiteID(tenancy.FromContext(ctx).SubsiteID))
+	q.SetNillableGoodsType(in.GoodsType).SetNillableShippingMode(in.ShippingMode).SetNillableShippingFee(in.ShippingFee)
+	q.SetNillableProductProperty(in.ProductProperty).SetNillableSalesVisible(in.SalesVisible).SetNillableTrackInventory(in.TrackInventory)
+	if current.GoodsType == "physical" {
+		q.SetDedup(false)
+	}
+	if in.GoodsType != nil || in.ShippingMode != nil {
+		q.SetShippingCountries(in.ShippingCountries)
+	}
+	if current.GoodsType == "physical" || current.ProductKind == "sms_channel" {
+		q.AddLockVersion(1)
+	}
+	if in.PhysicalStock != nil && current.GoodsType == "physical" {
+		if in.ExpectedPhysicalStock == nil || *in.ExpectedPhysicalStock != current.PhysicalStock {
+			return nil, fmt.Errorf("库存已变化，请刷新后重新调整")
+		}
+		if err := data.AdjustPhysicalStock(ctx, r.data, current, 0, *in.PhysicalStock); err != nil {
+			return nil, err
+		}
+	} else {
+		q.SetNillablePhysicalStock(in.PhysicalStock)
+	}
 	if in.Name != "" {
 		q.SetName(in.Name)
 	}
@@ -307,7 +345,9 @@ func (r *ProductRepoImpl) updateProduct(ctx context.Context, id uint64, in port.
 	if in.DirectContent != nil {
 		q.SetDirectContent(in.DirectContent)
 	}
-	q.SetStockVisible(in.StockVisible)
+	if in.StockVisibleSet {
+		q.SetStockVisible(in.StockVisible)
+	}
 	q.SetIsRecommend(in.IsRecommend) // PUT 全量语义（含 false=取消推荐）
 	if in.Sort >= 0 {
 		q.SetSort(in.Sort)
@@ -502,29 +542,84 @@ func descendantCategoryIDs(ctx context.Context, client *ent.Client, id uint64) (
 	return out, nil
 }
 
-// DeleteCategory 删除（有子分类或有商品时拒删）。
+// deleteCategory removes the entire tenant-owned subtree and its live products.
+// Orders, deliveries and financial records are retained; failure rolls back all.
 func (r *ProductRepoImpl) deleteCategory(ctx context.Context, id uint64) error {
 	client := data.Client(ctx, r.data)
-	hasChildren, err := client.Category.Query().Where(category.ParentID(id)).Exist(ctx)
+	tenant := tenancy.FromContext(ctx).SubsiteID
+	if err := lockCategoryStructure(ctx, r.data); err != nil {
+		return err
+	}
+	q := client.Category.Query().Where(category.SubsiteID(tenant)).Order(ent.Asc(category.FieldID))
+	if r.data.Dialect != db.SQLite {
+		q.ForUpdate()
+	}
+	rows, err := q.All(ctx)
 	if err != nil {
 		return err
 	}
-	if hasChildren {
-		return fmt.Errorf("catalog.CATEGORY_HAS_CHILDREN")
+	children := map[uint64][]uint64{}
+	found := false
+	for _, row := range rows {
+		if row.ID == id {
+			found = true
+		}
+		children[row.ParentID] = append(children[row.ParentID], row.ID)
 	}
-	hasProducts, err := client.Product.Query().Where(product.CategoryID(id)).Exist(ctx)
-	if err != nil {
-		return err
-	}
-	if hasProducts {
-		return fmt.Errorf("catalog.CATEGORY_HAS_PRODUCTS")
-	}
-	n, err := client.Category.Delete().Where(category.ID(id)).Exec(ctx)
-	if err != nil {
-		return err
-	}
-	if n == 0 {
+	if !found {
 		return fmt.Errorf("catalog.CATEGORY_NOT_FOUND")
+	}
+	ids := []uint64{id}
+	seen := map[uint64]bool{id: true}
+	for i := 0; i < len(ids); i++ {
+		for _, child := range children[ids[i]] {
+			if !seen[child] {
+				seen[child] = true
+				ids = append(ids, child)
+			}
+		}
+	}
+	// Chunk IN predicates for SQLite parameter limits; hold locks until commit.
+	for start := 0; start < len(ids); start += 200 {
+		end := start + 200
+		if end > len(ids) {
+			end = len(ids)
+		}
+		chunk := ids[start:end]
+		pq := client.Product.Query().Where(product.SubsiteID(tenant), product.CategoryIDIn(chunk...), product.StatusGTE(0)).Order(ent.Asc(product.FieldID))
+		if r.data.Dialect != db.SQLite {
+			pq.ForUpdate()
+		}
+		products, err := pq.All(ctx)
+		if err != nil {
+			return err
+		}
+		for _, p := range products {
+			if err = r.archiveProduct(ctx, p.ID); err != nil {
+				return err
+			}
+		}
+		if err = client.Product.Update().Where(product.CategoryIDIn(chunk...), product.SubsiteID(tenant), product.StatusLT(0)).ClearCategoryID().Exec(ctx); err != nil {
+			return err
+		}
+		if _, err = client.SupplierProductPrice.Delete().Where(supplierproductprice.CategoryIDIn(chunk...), supplierproductprice.Scope("category")).Exec(ctx); err != nil {
+			return err
+		}
+		if err = client.SupplyMapping.Update().Where(supplymapping.LocalCategoryIDIn(chunk...)).ClearLocalCategoryID().Exec(ctx); err != nil {
+			return err
+		}
+		if _, err = client.CategoryProductPlacement.Delete().Where(placement.CategoryIDIn(chunk...), placement.SubsiteID(tenant)).Exec(ctx); err != nil {
+			return err
+		}
+	}
+	for start := 0; start < len(ids); start += 200 {
+		end := start + 200
+		if end > len(ids) {
+			end = len(ids)
+		}
+		if _, err = client.Category.Delete().Where(category.IDIn(ids[start:end]...), category.SubsiteID(tenant)).Exec(ctx); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -625,12 +720,14 @@ func (r *ProductRepoImpl) DeleteTag(ctx context.Context, id uint64) error {
 // ToAdminPB 转 admin 协议对象。
 func ToAdminPB(p *ent.Product) *adminv1.AdminProduct {
 	out := &adminv1.AdminProduct{
+		ProductProperty: p.ProductProperty, SalesVisible: &p.SalesVisible, TrackInventory: &p.TrackInventory,
+		ProductKind: p.ProductKind, GoodsType: p.GoodsType, ShippingMode: p.ShippingMode, ShippingFeeCents: p.ShippingFee, ShippingCountries: p.ShippingCountries, PhysicalStock: p.PhysicalStock,
 		FulfillmentMode: p.FulfillmentMode, ManualStock: &p.ManualStock,
 		Id: p.ID, CategoryId: p.CategoryID, Name: p.Name, Slug: p.Slug,
 		Description: p.Description, Cover: p.Cover, Images: p.Images,
 		CoverProtected: p.CoverProtected, DescriptionProtected: p.DescriptionProtected,
 		PriceCents: p.Price, FactoryPriceCents: p.FactoryPrice,
-		StockType: string(p.StockType), StockVisible: p.StockVisible,
+		StockType: string(p.StockType), StockVisible: proto.Bool(p.StockVisible),
 		DeliveryMode: string(p.DeliveryMode), Dedup: p.Dedup,
 		Sort: p.Sort, Status: int32(p.Status),
 		UpstreamSourceId: p.UpstreamSourceID, UpstreamProductCode: p.UpstreamProductCode,
@@ -660,15 +757,39 @@ func nilOrZero(v uint64) *uint64 {
 // 判据：subsite_id + upstream_source_id + upstream_product_code 幂等。
 // Price=-1 保持现有价（价格保护由 supply 侧决策后传入）。
 func (r *ProductRepoImpl) UpsertUpstreamProduct(ctx context.Context, in port.UpstreamProductInput) (id uint64, created bool, err error) {
-	err = data.Tx(ctx, r.data, func(ctx context.Context) error {
+	err = data.CurrencyTx(ctx, r.data, func(ctx context.Context) error {
 		var e error
 		id, created, e = r.upsertUpstreamProduct(ctx, in)
+		if e == nil && in.ProductKind == "sms_channel" {
+			// Modern channel catalogs supersede the source's legacy offer rows.
+			// Preserve IDs for paid orders and in-flight intents. Ordinary goods
+			// and operator-locked products are outside this conversion.
+			e = data.Client(ctx, r.data).Product.Update().Where(product.SubsiteID(tenancy.FromContext(ctx).SubsiteID), product.UpstreamSourceID(in.ConnectionID), product.DeliveryKind("sms_activation"), product.ProductKindNEQ("sms_channel"), product.StatusGTE(0), product.IsLocked(false)).SetStatus(-1).SetAutoListing(false).AddLockVersion(1).Exec(ctx)
+		}
 		return e
 	})
 	return
 }
 
 func (r *ProductRepoImpl) upsertUpstreamProduct(ctx context.Context, in port.UpstreamProductInput) (uint64, bool, error) {
+	if in.ProductKind == "" {
+		in.ProductKind = "standard"
+	}
+	if in.ProductKind != "standard" && in.ProductKind != "sms_channel" {
+		return 0, false, fmt.Errorf("商品类型无效")
+	}
+	if in.ProductKind == "sms_channel" && (in.DeliveryKind != "sms_activation" || len(in.SKUs) > 0) {
+		return 0, false, fmt.Errorf("渠道商品类型无效")
+	}
+	if in.DeliveryKind == "" {
+		in.DeliveryKind = "card"
+	}
+	if in.DeliveryKind != "card" && in.DeliveryKind != "sms_activation" {
+		return 0, false, fmt.Errorf("不支持的上游交付类型")
+	}
+	if in.DeliveryKind == "sms_activation" && len(in.SKUs) > 0 {
+		return 0, false, fmt.Errorf("接码商品不支持规格")
+	}
 	tc := tenancy.FromContext(ctx)
 	existing, err := data.Client(ctx, r.data).Product.Query().
 		Where(
@@ -760,6 +881,7 @@ func (r *ProductRepoImpl) upsertUpstreamProduct(ctx context.Context, in port.Ups
 			SetSlug(slug).
 			SetPrice(price).
 			SetFactoryPrice(max(in.FactoryPrice, 0)).
+			SetProductKind(in.ProductKind).SetDeliveryKind(in.DeliveryKind).SetSmsProduct(in.SMSProduct).
 			SetStockType(product.StockTypeCard).
 			SetStatus(status).
 			SetUpstreamSourceID(in.ConnectionID).
@@ -816,6 +938,13 @@ func (r *ProductRepoImpl) upsertUpstreamProduct(ctx context.Context, in port.Ups
 	upd := data.Client(ctx, r.data).Product.UpdateOneID(existing.ID).Where(product.StatusGTE(0)).
 		SetName(in.Name).
 		SetUpstreamSyncedAt(in.UpstreamSyncedAt)
+	if existing.ProductKind != in.ProductKind {
+		return 0, false, fmt.Errorf("商品类型不能变化")
+	}
+	if existing.DeliveryKind != in.DeliveryKind {
+		return 0, false, fmt.Errorf("上游交付类型变化，请新建商品映射")
+	}
+	upd.SetSmsProduct(in.SMSProduct)
 	if in.FactoryPrice >= 0 {
 		upd.SetFactoryPrice(in.FactoryPrice)
 	}
@@ -1042,7 +1171,7 @@ func (r *ProductRepoImpl) ShelveOffMissing(ctx context.Context, connectionID uin
 		Where(
 			product.SubsiteID(tc.SubsiteID),
 			product.UpstreamSourceID(connectionID),
-			product.StatusGT(0), product.IsLocked(false),
+			product.StatusGT(0), product.IsLocked(false), product.DeliveryKind("card"),
 		)
 	if len(seen) > 0 {
 		q = q.Where(product.UpstreamProductCodeNotIn(seen...))
@@ -1096,7 +1225,7 @@ func (r *ProductRepoImpl) ListForSupply(ctx context.Context, f port.AdminFilter)
 	for _, v := range skus {
 		blocked = append(blocked, v.ProductID)
 	}
-	q := data.Client(ctx, r.data).Product.Query().Where(product.StatusGTE(0), data.VisibleProductCategory(hidden)).Where(product.FulfillmentModeNotIn("manual", "local", "reuse"), product.IDNotIn(blocked...))
+	q := data.Client(ctx, r.data).Product.Query().Where(product.DeliveryKind("card"), product.GoodsTypeNEQ("physical"), product.StatusGTE(0), data.VisibleProductCategory(hidden)).Where(product.FulfillmentModeNotIn("manual", "local", "reuse"), product.IDNotIn(blocked...))
 	if f.Status >= 0 {
 		q = q.Where(product.Status(int8(f.Status)))
 	}
@@ -1118,9 +1247,15 @@ func (r *ProductRepoImpl) ListForSupply(ctx context.Context, f port.AdminFilter)
 
 // GetForSupply 供货单品（含下架）。
 func (r *ProductRepoImpl) GetForSupply(ctx context.Context, productID uint64) (*port.SupplierProduct, error) {
-	row, err := data.Client(ctx, r.data).Product.Get(ctx, productID)
+	row, err := data.Client(ctx, r.data).Product.Query().Where(product.ID(productID), product.SubsiteID(tenancy.FromContext(ctx).SubsiteID), product.StatusGTE(0)).Only(ctx)
+	if ent.IsNotFound(err) {
+		return nil, ErrProductNotFound
+	}
 	if err != nil {
 		return nil, err
+	}
+	if row.DeliveryKind != "card" {
+		return nil, fmt.Errorf("接码商品不支持二级供货")
 	}
 	if yes, e := data.HasLocalDelivery(ctx, data.Client(ctx, r.data), row); e != nil {
 		return nil, e
@@ -1142,20 +1277,21 @@ func (r *ProductRepoImpl) GetForSupply(ctx context.Context, productID uint64) (*
 }
 
 func toSupplierProduct(row *ent.Product) port.SupplierProduct {
+	name, description := sanitize.SMSPublicContent(row.ProductKind, row.Name, row.Description)
 	return port.SupplierProduct{
 		ID:           row.ID,
-		Name:         row.Name,
+		Name:         name,
 		Price:        row.Price,
 		FactoryPrice: row.FactoryPrice,
 		CategoryID:   row.CategoryID,
-		Description:  row.Description,
+		Description:  description,
 		Cover:        row.Cover,
 		Status:       row.Status,
 	}
 }
 
 func (r *ProductRepoImpl) CreateProduct(ctx context.Context, in port.ProductInput) (out *ent.Product, err error) {
-	err = data.Tx(ctx, r.data, func(ctx context.Context) error {
+	err = data.CurrencyTx(ctx, r.data, func(ctx context.Context) error {
 		var e error
 		out, e = r.createProduct(ctx, in)
 		if e != nil {
@@ -1183,19 +1319,7 @@ func (r *ProductRepoImpl) UpdateProduct(ctx context.Context, id uint64, in port.
 	return
 }
 func (r *ProductRepoImpl) DeleteProduct(ctx context.Context, id uint64) error {
-	return data.Tx(ctx, r.data, func(ctx context.Context) error {
-		if _, e := data.GuardProductWrite(ctx, r.data, id); e != nil {
-			return e
-		}
-		old, e := data.Client(ctx, r.data).Product.Get(ctx, id)
-		if e != nil {
-			return e
-		}
-		if e = r.deleteProduct(ctx, id); e != nil {
-			return e
-		}
-		return data.SyncProductMediaRefs(ctx, r.data, old, nil)
-	})
+	return data.Tx(ctx, r.data, func(ctx context.Context) error { return r.archiveProduct(ctx, id) })
 }
 
 func (r *ProductRepoImpl) UpdateCategory(ctx context.Context, id uint64, name string, icon *string, hide *bool, sort *int32, parentID *int64) (out *ent.Category, err error) {
@@ -1215,16 +1339,7 @@ func (r *ProductRepoImpl) UpdateCategory(ctx context.Context, id uint64, name st
 	return
 }
 func (r *ProductRepoImpl) DeleteCategory(ctx context.Context, id uint64) error {
-	return data.Tx(ctx, r.data, func(ctx context.Context) error {
-		if e := lockCategoryStructure(ctx, r.data); e != nil {
-			return e
-		}
-		if e := r.deleteCategory(ctx, id); e != nil {
-			return e
-		}
-		_, e := data.Client(ctx, r.data).CategoryProductPlacement.Delete().Where(placement.CategoryID(id), placement.SubsiteID(tenancy.FromContext(ctx).SubsiteID)).Exec(ctx)
-		return e
-	})
+	return data.Tx(ctx, r.data, func(ctx context.Context) error { return r.deleteCategory(ctx, id) })
 }
 func (r *ProductRepoImpl) guardCategoryProducts(ctx context.Context, ids []uint64) error {
 	c := data.Client(ctx, r.data)

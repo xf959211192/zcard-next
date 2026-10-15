@@ -92,7 +92,7 @@ func (EmailVerification) Fields() []ent.Field {
 		field.Uint64("id"),
 		field.String("email").MaxLen(255).Comment("目标地址（邮箱或手机号；purpose 区分通道）"),
 		field.Uint64("user_id").Optional(),
-		field.Enum("purpose").Values("register", "phone_register", "reset"),
+		field.Enum("purpose").Values("register", "phone_register", "reset", "order_access"),
 		field.String("code_hash").MaxLen(128).Comment("验证码哈希"),
 		field.Time("expires_at").SchemaType(mysqlTime),
 		field.Time("verified_at").SchemaType(mysqlTime).Optional(),
@@ -195,6 +195,7 @@ func (RiskLockKey) Fields() []ent.Field {
 	return []ent.Field{
 		field.Uint64("id"),
 		field.String("key_hash").MaxLen(128).Comment("锁定键哈希（IP/订单维度，命名空间前缀）"),
+		field.Int("failure_count").Default(5).Comment("连续失败次数；默认5保留升级前已有锁定"),
 		field.Time("expires_at").SchemaType(mysqlTime).Comment("TTL 过期自动失效"),
 		field.Time("created_at").SchemaType(mysqlTime).Immutable().Default(nowUTC),
 	}

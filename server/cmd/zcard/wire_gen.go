@@ -97,7 +97,7 @@ func wireApp(serverConf *conf.Server, dataConf *conf.Data, securityConf *conf.Se
 	alerter := audit.ProvideAuditAlerter(repoImpl, dispatcher)
 	auditRepo := audit.NewAuditRepoWithAlerter(dataData, logger, alerter)
 	pointsDebiter := wallet.ProvidePortPointsDebiter(walletRepoImpl)
-	orderUsecase := order.NewOrderUsecaseDep(dataData, cardRepoImpl, generator, memberLevelRepoImpl, couponRepoImpl, productRepoImpl, outboxWriter, auditRepo, couponRepoImpl, couponRepoImpl, settingsReader, resellerRepo, pointsDebiter)
+	orderUsecase := order.NewOrderUsecaseDep(dataData, cardRepoImpl, generator, memberLevelRepoImpl, couponRepoImpl, productRepoImpl, outboxWriter, auditRepo, couponRepoImpl, couponRepoImpl, settingsReader, resellerRepo, pointsDebiter, cardCipher)
 	storeCatalogService := catalog.NewStoreCatalogService(catalogUsecase, resellerRepo, orderUsecase)
 	storeReviewService := catalog.NewStoreReviewService(productRepoImpl)
 	supplyRepoImpl := supply.NewSupplyRepoImpl(dataData, box)
@@ -122,6 +122,8 @@ func wireApp(serverConf *conf.Server, dataConf *conf.Data, securityConf *conf.Se
 	paymentRepoImpl := payment.NewPaymentRepoImpl(dataData, box, registry, orderLifecycle, portWallet, points, outboxWriter, repoImpl, repoImpl, supplierRepoImpl)
 	procureService := procurement.NewProcureService(procureRepo, gateway, productRepoImpl, cardCipher, deliveryRepoImpl, paymentRepoImpl, outboxWriter, enqueuer, logger)
 	adminProcurementService := procurement.NewAdminProcurementService(procureRepo, procureService)
+	storeSMSService := procurement.NewStoreSMSService(procureService)
+	storeSMSChannelService := supply.NewStoreSMSChannelService(gateway)
 	supplyAPIService := supplier.NewSupplyAPIService(supplierRepoImpl, productRepoImpl, cardRepoImpl, cardRepoImpl, enqueuer, generator, logger)
 	adminSupplierService := supplier.NewAdminSupplierService(supplierRepoImpl, supplyAPIService)
 	storeSupplierService := supplier.NewStoreSupplierService(supplierRepoImpl, settingsReader, paymentRepoImpl)
@@ -186,7 +188,7 @@ func wireApp(serverConf *conf.Server, dataConf *conf.Data, securityConf *conf.Se
 	seoService := seo.NewSeoService(seoRepo, repoImpl, storeCatalogService)
 	updateService := update.NewService(dataConf, settingsUsecase)
 	adminUpdateService := update.NewAdminUpdateService(updateService)
-	httpServer := server.NewHTTPServer(serverConf, dataData, signer, rbacUsecase, adminUserRepoImpl, adminAuthService, adminSettingsService, adminInstallService, storeCatalogService, storeReviewService, adminSupplyService, adminProcurementService, supplyAPIService, adminSupplierService, storeSupplierService, supplierRepoImpl, adminContentService, storeContentService, adminNotifyService, storeNotificationService, storeCouponService, storeTicketService, adminTicketService, storeAffiliateService, adminMediaService, adminLicenseService, adminResellerService, resellerRepo, storeUserService, adminUserManageService, adminAuditService, auditRepo, roleService, adminUserService, storefrontConfigService, storeCaptchaService, storeMediaService, adminCurrencyService, adminCatalogService, adminMemberLevelService, storeMemberLevelService, storeLicenseService, adminCouponService, adminService, storeService, adminDashboardService, adminInventoryService, adminOrderService, procureService, gateway, storeOrderService, storeCartService, adminPaymentService, storePaymentService, paymentRepoImpl, storeWalletService, adminWalletService, storeDeliveryService, adminFulfillmentService, enqueuer, directory, trackRepo, seoService, adminUpdateService)
+	httpServer := server.NewHTTPServer(serverConf, dataData, signer, rbacUsecase, adminUserRepoImpl, adminAuthService, adminSettingsService, adminInstallService, storeCatalogService, storeReviewService, adminSupplyService, adminProcurementService, storeSMSService, storeSMSChannelService, supplyAPIService, adminSupplierService, storeSupplierService, supplierRepoImpl, adminContentService, storeContentService, adminNotifyService, storeNotificationService, storeCouponService, storeTicketService, adminTicketService, storeAffiliateService, adminMediaService, adminLicenseService, adminResellerService, resellerRepo, storeUserService, adminUserManageService, adminAuditService, auditRepo, roleService, adminUserService, storefrontConfigService, storeCaptchaService, storeMediaService, adminCurrencyService, adminCatalogService, adminMemberLevelService, storeMemberLevelService, storeLicenseService, adminCouponService, adminService, storeService, adminDashboardService, adminInventoryService, adminOrderService, procureService, gateway, storeOrderService, storeCartService, adminPaymentService, storePaymentService, paymentRepoImpl, storeWalletService, adminWalletService, storeDeliveryService, adminFulfillmentService, enqueuer, directory, trackRepo, seoService, adminUpdateService)
 	grpcServer := server.NewGRPCServer(serverConf, adminAuthService, adminSettingsService, storeCatalogService, roleService, adminUserService, storefrontConfigService, adminCurrencyService, adminCatalogService, adminInventoryService, adminOrderService, storeOrderService, adminPaymentService, storePaymentService, storeWalletService, adminWalletService, storeDeliveryService, adminFulfillmentService, storeMemberLevelService, storeLicenseService)
 	workerServer := server.NewWorkerServer(dataConf, enqueuer, dataDispatcher, syncService, procureService, supplyAPIService, broadcastService)
 	outboxRelay := bootstrap.NewOutboxRelay(dataData, enqueuer, logger)
@@ -198,7 +200,7 @@ func wireApp(serverConf *conf.Server, dataConf *conf.Data, securityConf *conf.Se
 	backgroundServer := server.NewBackgroundServer(outboxRelay, cron, runMode)
 	settleService := reseller.NewSettleService(resellerRepo, logger)
 	pointsService := memberlevel.NewPointsService(memberLevelRepoImpl, points, logger)
-	app := newApp(logger, httpServer, grpcServer, workerServer, backgroundServer, dataDispatcher, procureService, dispatcher, affiliateService, settleService, deliveryRepoImpl, pointsService, orderUsecase, paymentRepoImpl, walletRepoImpl, gateway, storeCatalogService)
+	app := newApp(logger, httpServer, grpcServer, workerServer, backgroundServer, dataDispatcher, procureService, dispatcher, affiliateService, settleService, deliveryRepoImpl, pointsService, orderUsecase, paymentRepoImpl, walletRepoImpl, gateway, storeCatalogService, storeOrderService)
 	mainAppDeps := &appDeps{
 		App:    app,
 		Update: updateService,

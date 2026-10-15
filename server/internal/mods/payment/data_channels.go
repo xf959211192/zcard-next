@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/NovaWorks/zcard-next/server/internal/data/ent/predicate"
 	"sort"
 	"strconv"
 	"strings"
@@ -77,56 +78,89 @@ func chargeUnits(amount money.Cents, rate decimal.Decimal, unit currencyunit.Cha
 }
 
 func (r *PaymentRepoImpl) computeCharge(ctx context.Context, driver string, cfg json.RawMessage, amount money.Cents) (ChargeSnapshot, error) {
-	direct := ChargeSnapshot{}
+	base, err := data.BaseCurrency(ctx, r.data)
+	if err != nil {
+		return ChargeSnapshot{}, err
+	}
+	target, err := chargeCurrency(driver, cfg, base)
+	if err != nil {
+		return ChargeSnapshot{}, err
+	}
+	// Preserve the legacy representation for CNY channels and old callbacks.
+	if base == "CNY" && target == "CNY" {
+		return ChargeSnapshot{}, nil
+	}
+	unit, err := currencyunit.CurrencyChargeUnit(driver, target)
+	if err != nil {
+		return ChargeSnapshot{}, err
+	}
+	rate := decimal.NewFromInt(1)
+	if target != base {
+		if r.currency == nil {
+			return ChargeSnapshot{}, fmt.Errorf("payment.CURRENCY_MISSING: 未配置币种 %s", target)
+		}
+		rateStr, _, e := r.currency.CurrencyByCode(ctx, target)
+		if e != nil {
+			return ChargeSnapshot{}, fmt.Errorf("payment.CURRENCY_MISSING: 未配置币种 %s", target)
+		}
+		rate, err = decimal.NewFromString(rateStr)
+		if err != nil || !rate.IsPositive() {
+			return ChargeSnapshot{}, fmt.Errorf("payment.INVALID_EXCHANGE_RATE")
+		}
+	}
+	rate = rate.Round(8)
+	rf, _ := rate.Float64()
+	if !rate.IsPositive() || rate.GreaterThan(decimal.RequireFromString("999999999999.99999999")) {
+		return ChargeSnapshot{}, fmt.Errorf("payment.INVALID_EXCHANGE_RATE")
+	}
+	rate = decimal.NewFromFloat(rf).Round(8)
+	units, err := chargeUnits(amount, rate, unit)
+	if err != nil {
+		return ChargeSnapshot{}, err
+	}
+	return ChargeSnapshot{Units: units, Currency: target, Rate: rf, Precision: unit.Precision}, nil
+}
+
+// CNY-only drivers must never interpret an AUD base amount as yuan. Multi-currency
+// drivers receive an explicit charge snapshot even for a same-currency AUD charge.
+func chargeCurrency(driver string, cfg json.RawMessage, base string) (string, error) {
 	var probe struct {
 		TargetCurrency string `json:"target_currency"`
 		Currency       string `json:"currency"`
 	}
 	if err := json.Unmarshal(cfg, &probe); err != nil {
-		return direct, fmt.Errorf("payment.CHANNEL_CONFIG_INVALID: %w", err)
+		return "", fmt.Errorf("payment.CHANNEL_CONFIG_INVALID: %w", err)
 	}
-	tc := strings.ToUpper(strings.TrimSpace(probe.TargetCurrency))
-	if driver == "epusdt" {
+	target := strings.ToUpper(strings.TrimSpace(probe.TargetCurrency))
+	switch driver {
+	case "wallet":
+		return base, nil
+	case "stripe", "paypal":
+		if target == "" {
+			target = base
+		}
+		if _, err := currencyunit.CurrencyChargeUnit(driver, target); err != nil {
+			return "", err
+		}
+	case "epusdt":
 		fiat := strings.ToUpper(strings.TrimSpace(probe.Currency))
 		if fiat == "" {
 			fiat = "CNY"
 		}
-		if tc != "" && tc != fiat {
-			return direct, fmt.Errorf("payment.CHANNEL_CONFIG_INVALID: GMPay 请使用 currency 配置法币")
+		if target != "" && target != fiat {
+			return "", fmt.Errorf("payment.CHANNEL_CONFIG_INVALID: GMPay 请使用 currency 配置法币")
 		}
-		tc = fiat
+		target = fiat
+		if _, err := currencyunit.CurrencyChargeUnit(driver, target); err != nil {
+			return "", err
+		}
+	default:
+		if base != "CNY" || (target != "" && target != "CNY") {
+			return "", fmt.Errorf("payment.CURRENCY_UNSUPPORTED: %s 不支持基础货币 %s", driver, base)
+		}
+		target = "CNY"
 	}
-	if tc == "" || tc == "CNY" {
-		return direct, nil
-	}
-	unit, err := currencyunit.CurrencyChargeUnit(driver, tc)
-	if err != nil {
-		return direct, err
-	}
-	if r.currency == nil {
-		return direct, fmt.Errorf("payment.CURRENCY_MISSING: 未配置币种 %s", tc)
-	}
-	rateStr, _, err := r.currency.CurrencyByCode(ctx, tc)
-	if err != nil {
-		return direct, fmt.Errorf("payment.CURRENCY_MISSING: 未配置币种 %s", tc)
-	}
-	rate, err := decimal.NewFromString(rateStr)
-	if err != nil || !rate.IsPositive() {
-		return direct, fmt.Errorf("payment.INVALID_EXCHANGE_RATE")
-	}
-	// Match the existing decimal(20,8) snapshot storage before doing arithmetic.
-	rate = rate.Round(8)
-	rf, _ := rate.Float64()
-	if !rate.IsPositive() || rate.GreaterThan(decimal.RequireFromString("999999999999.99999999")) {
-		return direct, fmt.Errorf("payment.INVALID_EXCHANGE_RATE")
-	}
-	// Use exactly the rate that will be recovered from the existing float field.
-	rate = decimal.NewFromFloat(rf).Round(8)
-	units, err := chargeUnits(amount, rate, unit)
-	if err != nil {
-		return direct, err
-	}
-	return ChargeSnapshot{Units: units, Currency: tc, Rate: rf, Precision: unit.Precision}, nil
+	return target, nil
 }
 
 func (r *PaymentRepoImpl) snapshotCharge(ctx context.Context, paymentID uint64, snap ChargeSnapshot) error {
@@ -245,14 +279,13 @@ func methodsJSON(raw string) ([]map[string]any, error) {
 	return out, nil
 }
 
-// CreateChannel 创建渠道（凭据加密入库；methodsJSON=支付方式列表）。
-func (r *PaymentRepoImpl) CreateChannel(ctx context.Context, name, code, driver, configJSON string, fee int64, feeType string, enabled bool, sort int32, icon string, methods []map[string]any, usage ...ChannelUsage) (*ent.PaymentChannel, error) {
-	if driver == "bepusdt" && len(methods) > 0 {
-		return nil, fmt.Errorf("payment.METHODS_INVALID: BEpusdt 请通过收款模式配置多链收银台，不支持本地支付方式列表")
+func (r *PaymentRepoImpl) createChannel(ctx context.Context, name, code, driver, configJSON string, fee int64, feeType string, enabled bool, sort int32, icon string, methods []map[string]any, usage ...ChannelUsage) (*ent.PaymentChannel, error) {
+	if isNativeCryptoDriver(driver) && len(methods) > 0 {
+		return nil, fmt.Errorf("payment.METHODS_INVALID: 此渠道不支持本地支付方式列表，请在渠道参数中配置币种与网络")
 	}
 	// A deleted channel keeps its code for historical callbacks. A replacement
 	// requested from the visible list must receive a fresh code and encryption AAD.
-	if driver == "bepusdt" {
+	if isNativeCryptoDriver(driver) {
 		c := data.Client(ctx, r.data)
 		reserved, err := c.PaymentChannel.Query().Where(paymentchannel.SubsiteID(0), paymentchannel.Code(code), paymentchannel.DeletedAtNotNil()).Exist(ctx)
 		if err != nil {
@@ -296,11 +329,21 @@ func (r *PaymentRepoImpl) CreateChannel(ctx context.Context, name, code, driver,
 	return q.Save(ctx)
 }
 
+// CreateChannel 创建渠道（凭据加密入库；methodsJSON=支付方式列表）。
+func (r *PaymentRepoImpl) CreateChannel(ctx context.Context, name, code, driver, configJSON string, fee int64, feeType string, enabled bool, sort int32, icon string, methods []map[string]any, usage ...ChannelUsage) (out *ent.PaymentChannel, err error) {
+	err = data.CurrencyTx(ctx, r.data, func(ctx context.Context) error {
+		var e error
+		out, e = r.createChannel(ctx, name, code, driver, configJSON, fee, feeType, enabled, sort, icon, methods, usage...)
+		return e
+	})
+	return out, err
+}
+
 // UpdateChannel 更新渠道（config_json=**** 跳过凭据修改；feeType 空=不修改；
 // setIcon/setMethods=false 保持原值——proto optional 语义）。
 func (r *PaymentRepoImpl) UpdateChannel(ctx context.Context, id uint64, name, configJSON string, fee int64, feeType string, enabled bool, sort int32, setIcon bool, icon string, setMethods bool, methods []map[string]any, usage ...ChannelUsage) (*ent.PaymentChannel, error) {
 	var result *ent.PaymentChannel
-	err := data.Tx(ctx, r.data, func(txCtx context.Context) error {
+	err := data.CurrencyTx(ctx, r.data, func(txCtx context.Context) error {
 		ch, err := data.Client(txCtx, r.data).PaymentChannel.UpdateOneID(id).AddSort(0).Save(txCtx)
 		if err != nil {
 			return err
@@ -320,8 +363,8 @@ func (r *PaymentRepoImpl) updateChannel(ctx context.Context, id uint64, name, co
 		if err != nil {
 			return nil, err
 		}
-		if ch.Driver == "bepusdt" {
-			return nil, fmt.Errorf("payment.METHODS_INVALID: BEpusdt 请通过收款模式配置多链收银台，不支持本地支付方式列表")
+		if isNativeCryptoDriver(ch.Driver) {
+			return nil, fmt.Errorf("payment.METHODS_INVALID: 此渠道不支持本地支付方式列表，请在渠道参数中配置币种与网络")
 		}
 	}
 	q := data.Client(ctx, r.data).PaymentChannel.UpdateOneID(id)
@@ -376,7 +419,7 @@ func (r *PaymentRepoImpl) DeleteChannel(ctx context.Context, id uint64) error {
 		if err != nil {
 			return err
 		}
-		if ch.Driver == "bepusdt" {
+		if isNativeCryptoDriver(ch.Driver) {
 			if !ch.DeletedAt.IsZero() {
 				return nil
 			}
@@ -459,11 +502,21 @@ func (r *PaymentRepoImpl) ConfiguredFields(ch *ent.PaymentChannel) []string {
 
 // CreatePayment 创建支付单。
 func (r *PaymentRepoImpl) CreatePayment(ctx context.Context, orderID uint64, channel string, amount int64, idemKey string, methods ...string) (*ent.Payment, error) {
+	if preflight, ok := r.lifecycle.(interface {
+		ValidateSMSPayment(context.Context, uint64) error
+	}); ok {
+		if err := preflight.ValidateSMSPayment(ctx, orderID); err != nil {
+			return nil, err
+		}
+	}
 	var result *ent.Payment
 	err := data.Tx(ctx, r.data, func(ctx context.Context) error {
 		client := data.Client(ctx, r.data)
 		o, err := client.Order.Get(ctx, orderID)
 		if err != nil {
+			return err
+		}
+		if err := r.validateOrderCurrency(ctx, o); err != nil {
 			return err
 		}
 		now := time.Now().UTC()
@@ -473,6 +526,16 @@ func (r *PaymentRepoImpl) CreatePayment(ctx context.Context, orderID uint64, cha
 		ch, err := resolveChannel(ctx, r.data, o.SubsiteID, channel)
 		if err != nil {
 			return err
+		}
+		if e := data.ValidateSMSPayment(ctx, client, o.ID); e != nil {
+			return e
+		}
+		hasSMS, e := data.HasSMSOrder(ctx, client, o.ID)
+		if e != nil {
+			return e
+		}
+		if hasSMS && (ch.Driver != "wallet" || !data.SMSSalesEnabled() || o.UserID == 0 || o.BaseCurrency != "CNY" || ch.Fee != 0) {
+			return fmt.Errorf("payment.SMS_WALLET_ONLY: 接码仅支持会员余额付款，请确认销售已启用")
 		}
 		if !ch.Enabled {
 			return fmt.Errorf("payment.CHANNEL_DISABLED")
@@ -544,7 +607,7 @@ func (r *PaymentRepoImpl) CreateRechargePayment(ctx context.Context, rechargeOrd
 	if ro.Target == rechargeorder.TargetSupply {
 		scene = sceneSupplyRecharge
 	}
-	if err := checkPaymentUsage(ch, method, scene); err != nil {
+	if err := r.checkPaymentUsage(ch, method, scene); err != nil {
 		return nil, err
 	}
 	// 方式级路由（与订单支付同口径）：多方式渠道 method 必填且须在启用列表内
@@ -561,7 +624,7 @@ func (r *PaymentRepoImpl) CreateRechargePayment(ctx context.Context, rechargeOrd
 			return nil, fmt.Errorf("payment.METHOD_INVALID: 请选择该渠道支持的支付方式")
 		}
 	}
-	if ch.Driver == "bepusdt" {
+	if isNativeCryptoDriver(ch.Driver) {
 		return r.createBepusdtPayment(ctx, ch.ID, 0, ro.ID, method)
 	}
 	price, err := r.price(ctx, ch, ro.Amount, method)
@@ -677,8 +740,8 @@ func (r *PaymentRepoImpl) HandleCallback(ctx context.Context, paymentID uint64, 
 			return err
 		}
 
-		// Native BEpusdt must bind the exact attempt even for duplicate callbacks.
-		if p.DriverSnapshot == "bepusdt" {
+		// Native crypto gateways must bind the exact attempt even for duplicate callbacks.
+		if isNativeCryptoDriver(p.DriverSnapshot) {
 			p, err = r.lockBepusdtPayment(txCtx, p.ID)
 			if err != nil {
 				return err
@@ -736,7 +799,11 @@ func (r *PaymentRepoImpl) HandleCallback(ctx context.Context, paymentID uint64, 
 			if fact.Amount != p.Amount {
 				return fmt.Errorf("payment.AMOUNT_MISMATCH: want %d got %d", p.Amount, fact.Amount)
 			}
-			if fact.Currency != "CNY" {
+			base, err := r.paymentBaseCurrency(txCtx, p)
+			if err != nil {
+				return err
+			}
+			if !strings.EqualFold(fact.Currency, base) {
 				return fmt.Errorf("payment.CURRENCY_MISMATCH")
 			}
 		}
@@ -844,10 +911,20 @@ func (r *PaymentRepoImpl) settleOrder(ctx context.Context, p *ent.Payment, fact 
 // settleRecharge 充值型推进：充值单 success → 余额入账（幂等键 recharge:<paymentID>）
 // → outbox recharge.succeeded。金额与赠送全部取服务端落库值（铁律 16）。
 func (r *PaymentRepoImpl) settleRecharge(ctx context.Context, p *ent.Payment, fact CallbackFact) error {
+	base, err := data.BaseCurrency(ctx, r.data)
+	if err != nil {
+		return err
+	}
+	paymentCurrency, err := r.paymentBaseCurrency(ctx, p)
+	if err != nil {
+		return err
+	}
+	if paymentCurrency != base {
+		return fmt.Errorf("payment.CURRENCY_MISMATCH: 充值单币种与基础货币不一致，需要迁移")
+	}
 	client := data.Client(ctx, r.data)
 	var ro *ent.RechargeOrder
-	var err error
-	if p.DriverSnapshot == "bepusdt" {
+	if isNativeCryptoDriver(p.DriverSnapshot) {
 		if r.data.Dialect != db.SQLite {
 			ro, err = client.RechargeOrder.Query().Where(rechargeorder.ID(p.RechargeOrderID)).ForUpdate().Only(ctx)
 		} else {
@@ -860,7 +937,7 @@ func (r *PaymentRepoImpl) settleRecharge(ctx context.Context, p *ent.Payment, fa
 		return err
 	}
 	reviewOrReject := func() error {
-		if p.DriverSnapshot == "bepusdt" {
+		if isNativeCryptoDriver(p.DriverSnapshot) {
 			_, err := client.Payment.UpdateOneID(p.ID).SetReviewReason("充值单已处理，本次到账待核对，请处理退款").Save(ctx)
 			return err
 		}
@@ -959,12 +1036,21 @@ func (r *PaymentRepoImpl) CreateRefund(ctx context.Context, orderID uint64, amou
 }
 
 // ListRefunds 退款单列表。
-func (r *PaymentRepoImpl) ListRefunds(ctx context.Context, status string) ([]*ent.RefundOrder, error) {
-	q := data.Client(ctx, r.data).RefundOrder.Query().
-		Order(ent.Desc(refundorder.FieldCreatedAt)).
-		Limit(50)
+func (r *PaymentRepoImpl) ListRefunds(ctx context.Context, status string, filters ...*adminv1.ListRefundsRequest) ([]*ent.RefundOrder, error) {
+	orderFilter := []predicate.Order{order.SubsiteID(tenancy.FromContext(ctx).SubsiteID)}
+	var before uint64
+	if len(filters) > 0 && filters[0] != nil {
+		if filters[0].OrderNo != "" {
+			orderFilter = append(orderFilter, order.OrderNo(filters[0].OrderNo))
+		}
+		before = filters[0].BeforeId
+	}
+	q := data.Client(ctx, r.data).RefundOrder.Query().Where(refundorder.HasOrderWith(orderFilter...)).Order(ent.Desc(refundorder.FieldID)).Limit(50)
 	if status != "" {
-		q = q.Where(refundorder.StatusEQ(refundorder.Status(status)))
+		q.Where(refundorder.StatusEQ(refundorder.Status(status)))
+	}
+	if before > 0 {
+		q.Where(refundorder.IDLT(before))
 	}
 	return q.All(ctx)
 }
@@ -1013,11 +1099,12 @@ func ToPaymentPB(p *ent.Payment, orderNo string) *adminv1.Payment {
 
 // ToRefundPB 转退款单协议。
 func ToRefundPB(rf *ent.RefundOrder, orderNo string) *adminv1.RefundOrder {
+	allocations, _ := json.Marshal(rf.ItemAllocations)
 	return &adminv1.RefundOrder{
 		Id: rf.ID, OrderId: rf.OrderID, OrderNo: orderNo,
 		AmountCents: rf.Amount, FeeCents: rf.FeeAmount, Channel: string(rf.Channel),
 		Status: string(rf.Status), Reason: rf.Reason,
-		UpstreamRefundId: rf.UpstreamRefundID,
+		UpstreamRefundId: rf.UpstreamRefundID, CreatedAt: rf.CreatedAt.Unix(), ShippingCents: rf.ShippingAmount, ItemAllocationsJson: string(allocations), OperatorId: rf.OperatorID,
 	}
 }
 

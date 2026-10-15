@@ -7,6 +7,7 @@ plan/
 *.md
 !README.md
 !doc/部署指南.md
+!doc/physical-commerce-plan.md
 
 # Go
 *.exe
@@ -38,6 +39,8 @@ storefront/dist/
 # 环境变量
 .env
 .env.local
+deploy/.docker-update/
+__pycache__/
 
 # 本地运行产物
 *.rdb

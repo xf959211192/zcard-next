@@ -5,6 +5,7 @@ package catalog
 import (
 	"context"
 	stderrors "errors"
+	"github.com/NovaWorks/zcard-next/server/internal/data"
 	couponport "github.com/NovaWorks/zcard-next/server/internal/mods/coupon/port"
 	"sort"
 
@@ -13,9 +14,12 @@ import (
 
 	"github.com/NovaWorks/zcard-next/server/internal/mods/catalog/port"
 	orderport "github.com/NovaWorks/zcard-next/server/internal/mods/order/port"
+	"github.com/NovaWorks/zcard-next/server/internal/platform/sanitize"
 	"github.com/NovaWorks/zcard-next/server/internal/platform/tenancy"
 
 	"github.com/go-kratos/kratos/v3/errors"
+	"github.com/go-kratos/kratos/v3/transport"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -168,6 +172,11 @@ func (s *StoreCatalogService) GetProduct(ctx context.Context, req *storefrontv1.
 		}
 		return nil, errors.InternalServer("catalog.GET_FAILED", "读取商品失败")
 	}
+	if p.Status == 2 {
+		if tr, ok := transport.FromServerContext(ctx); ok {
+			tr.ReplyHeader().Set("Cache-Control", "no-store, private")
+		}
+	}
 	// ：分站单价（listing=checkout 同源；SKU 规则优先于商品规则由定价引擎裁定）
 	base := p.Price
 	if tc.SubsiteID != tenancy.MainSubsiteID && s.pricer != nil {
@@ -188,7 +197,7 @@ func (s *StoreCatalogService) GetProduct(ctx context.Context, req *storefrontv1.
 		return nil, errors.InternalServer("catalog.FLASH_FAILED", "读取活动价格失败，请重试")
 	}
 	out.FlashSale = toFlashOffer(offers[couponport.FlashKey{ProductID: p.ID}])
-	if p.UpstreamSourceID != 0 && s.stockLookup != nil {
+	if p.ProductKind != "sms_channel" && p.UpstreamSourceID != 0 && s.stockLookup != nil {
 		n, err := s.stockLookup.DisplayStock(ctx, p.UpstreamSourceID, p.UpstreamProductCode)
 		if err != nil || n < -1 {
 			out.Stock = -2
@@ -256,22 +265,26 @@ func (s *StoreCatalogService) GetProduct(ctx context.Context, req *storefrontv1.
 // toStorefrontProduct preserves source-aware stock: >=0 finite, -1 unlimited,
 // -2 unknown. Stock visibility only controls display, never purchase validation.
 func toStorefrontProduct(p *port.Product, stocks map[uint64]int64, soldCount int64) *storefrontv1.Product {
+	name, description := sanitize.SMSPublicContent(p.ProductKind, p.Name, p.Description)
 	stock, ok := stocks[p.ID]
 	if !ok {
 		stock = -2
 	}
 
 	return &storefrontv1.Product{
+		ProductProperty: p.ProductProperty, SalesVisible: &p.SalesVisible, TrackInventory: &p.TrackInventory,
+		ProductKind: p.ProductKind, DeliveryKind: p.DeliveryKind, SmsProduct: p.SMSProduct, SmsSalesEnabled: data.SMSSalesEnabled(),
+		GoodsType: p.GoodsType, ShippingMode: p.ShippingMode, ShippingFeeCents: p.ShippingFee, ShippingCountries: p.ShippingCountries,
 		Id:              p.ID,
-		Name:            p.Name,
+		Name:            name,
 		Slug:            p.Slug,
 		Cover:           p.Cover,
-		Description:     p.Description, // 商品详情（上游采集/后台编辑； 漏映射导致前台全部无描述）
+		Description:     description, // 商品详情（上游采集/后台编辑； 漏映射导致前台全部无描述）
 		PriceCents:      int64(p.Price),
 		StockType:       p.StockType,
 		FulfillmentMode: p.FulfillmentMode, ManualStock: p.ManualStock,
 		Stock:             stock,
-		StockVisible:      p.StockVisible,
+		StockVisible:      proto.Bool(p.StockVisible),
 		PointsRequired:    p.PointsRequired, // 积分商城（；0=常规商品）
 		SalesCount:        soldCount,
 		CategoryRecommend: p.CategoryRecommend, CategoryPinned: p.CategoryPinned,

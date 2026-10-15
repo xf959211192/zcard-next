@@ -12,7 +12,11 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"github.com/NovaWorks/zcard-next/server/internal/mods/identity"
+	"github.com/NovaWorks/zcard-next/server/internal/platform/tenancy"
 	"time"
+
+	"entgo.io/ent/dialect/sql"
 
 	"github.com/NovaWorks/zcard-next/server/internal/data"
 	"github.com/NovaWorks/zcard-next/server/internal/data/ent"
@@ -26,7 +30,7 @@ import (
 	auditport "github.com/NovaWorks/zcard-next/server/internal/mods/audit/port"
 	"github.com/NovaWorks/zcard-next/server/internal/mods/fulfillment/port"
 	"github.com/NovaWorks/zcard-next/server/internal/mods/inventory"
-	"github.com/NovaWorks/zcard-next/server/internal/platform/crypto"
+	"github.com/NovaWorks/zcard-next/server/internal/platform/orderaccess"
 )
 
 // DeliveryRepoImpl 交付仓储。
@@ -71,6 +75,11 @@ func (r *DeliveryRepoImpl) fulfillOrder(ctx context.Context, orderNo string) err
 		return err
 	}
 
+	if has, e := data.HasSMSOrder(ctx, client, o.ID); e != nil {
+		return e
+	} else if has {
+		return nil
+	}
 	if o.Status != order.StatusPaid && o.Status != order.StatusFulfilling && o.Status != order.StatusPartiallyDelivered {
 		return nil
 	}
@@ -119,6 +128,24 @@ func (r *DeliveryRepoImpl) fulfillOrder(ctx context.Context, orderNo string) err
 	// 逐卡：MarkUsed + 交付记录（即删模式交付后物理删除卡密行）
 	var deleteCardIDs []uint64
 	for _, c := range cards {
+		var itemID uint64
+		canceled := false
+		for _, it := range items {
+			if it.ProductID == c.ProductID && it.SkuID == c.SkuID {
+				if it.CanceledQuantity >= it.Quantity || it.FulfillmentStatus == "refunded" {
+					canceled = true
+					break
+				}
+				itemID = it.ID
+				break
+			}
+		}
+		if canceled {
+			continue
+		}
+		if itemID == 0 {
+			return fmt.Errorf("fulfillment.CARD_ITEM_MISMATCH")
+		}
 		// MarkUsed（affected rows 校验防并发重发）
 		affected, err := client.Card.Update().
 			Where(card.ID(c.ID), card.StatusEQ(card.StatusReserved), card.OrderID(o.ID)).
@@ -132,16 +159,6 @@ func (r *DeliveryRepoImpl) fulfillOrder(ctx context.Context, orderNo string) err
 			continue // 已处理（并发幂等）
 		}
 
-		var itemID uint64
-		for _, it := range items {
-			if it.ProductID == c.ProductID && it.SkuID == c.SkuID {
-				itemID = it.ID
-				break
-			}
-		}
-		if itemID == 0 {
-			return fmt.Errorf("fulfillment.CARD_ITEM_MISMATCH")
-		}
 		// 交付记录（card_id 引用 + 一次性令牌哈希——不存明文）
 		token := randomToken()
 		tokenHash := hashToken(token)
@@ -172,6 +189,9 @@ func (r *DeliveryRepoImpl) fulfillOrder(ctx context.Context, orderNo string) err
 	// 直发商品（url/code）：同一链接/兑换码反复发货——写直发交付记录
 	// （CardID=0，取货时从商品 direct_content 现场解密）。每订单项一条。
 	for _, it := range items {
+		if it.GoodsType == "physical" || it.CanceledQuantity >= it.Quantity {
+			continue
+		}
 		if it.FulfillmentType == orderitem.FulfillmentTypeReuse {
 			if err := r.fulfillReusable(ctx, o, it); err != nil {
 				return err
@@ -237,27 +257,20 @@ func (r *DeliveryRepoImpl) FetchDelivery(ctx context.Context, orderNo, queryPass
 	// 门 1+2：单号 + 查询密码（错误响应一致——防枚举）
 	o, err := client.Order.Query().Where(order.OrderNo(orderNo)).Only(ctx)
 	if ent.IsNotFound(err) {
-		return nil, fmt.Errorf("order.NOT_FOUND")
+		return nil, orderaccess.Verify(ctx, r.gate, orderNo, "", queryPassword, clientIP)
 	}
 	if err != nil {
 		return nil, err
 	}
-	// 取货锁定检查（连续失败 N 次锁 IP+订单组合；锁定期内正确密码也拒绝）
-	if r.gate != nil {
-		lockKey := "fetch:" + auditport.NormalizeIP(clientIP) + ":" + orderNo
-		if locked, _ := r.gate.IsLocked(ctx, lockKey); locked {
-			return nil, fmt.Errorf("delivery.LOCKED: 取货失败次数过多，请稍后再试")
-		}
+	if o.SubsiteID != tenancy.FromContext(ctx).SubsiteID {
+		return nil, orderaccess.Verify(ctx, r.gate, orderNo, "", queryPassword, clientIP)
 	}
-
-	// 密码校验（constant-time；密码错与单号错对外表现一致）
-	if o.QueryPasswordHash != "" {
-		if !crypto.VerifyPassword(o.QueryPasswordHash, queryPassword) {
-			// 失败计数锁定（达到阈值即锁）
-			if r.gate != nil {
-				_ = r.gate.LockFetchFailure(ctx, "fetch:"+auditport.NormalizeIP(clientIP)+":"+orderNo)
-			}
-			return nil, fmt.Errorf("order.NOT_FOUND")
+	claims := identity.ClaimsFromContext(ctx)
+	owner := claims != nil && o.UserID != 0 && claims.Subject == o.UserID
+	// Preserve historical password-less virtual orders; new physical guests require a password.
+	if !owner && (o.QueryPasswordHash != "" || o.CommerceVersion > 0) {
+		if err := orderaccess.Verify(ctx, r.gate, o.OrderNo, o.QueryPasswordHash, queryPassword, clientIP); err != nil {
+			return nil, err
 		}
 	}
 
@@ -386,7 +399,7 @@ func (r *DeliveryRepoImpl) FetchDelivery(ctx context.Context, orderNo, queryPass
 	if len(deliveries) > 0 {
 		result.FetchCnt = deliveries[0].FetchCount + 1
 	}
-	if o.Status == order.StatusDelivered && len(deliveries) > 0 {
+	if o.CommerceVersion == 0 && o.Status == order.StatusDelivered && len(deliveries) > 0 {
 		err := data.Tx(ctx, r.data, func(ctx context.Context) error {
 			client := data.Client(ctx, r.data)
 			n, err := client.Order.Update().Where(order.ID(o.ID), order.StatusEQ(order.StatusDelivered), order.Version(o.Version)).SetStatus(order.StatusCompleted).AddVersion(1).Save(ctx)
@@ -426,19 +439,35 @@ func (r *DeliveryRepoImpl) ProductNames(ctx context.Context, ids []uint64) (map[
 	return out, nil
 }
 
-// ListPending 待人工发货列表（含子项——面板展示商品名/数量）。
-func (r *DeliveryRepoImpl) ListPending(ctx context.Context, page, size int) ([]*ent.Order, error) {
+// ListPending 按订单分页，包含待寄出的实体商品和待人工处理的交付项。
+func (r *DeliveryRepoImpl) ListPending(ctx context.Context, page, size int) ([]*ent.Order, bool, error) {
 	c := data.Client(ctx, r.data)
 	pos, err := c.ProcurementOrder.Query().Where(procurementorder.StatusIn(procurementorder.StatusManual, procurementorder.StatusRejected, procurementorder.StatusRefunding)).All(ctx)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	var ids []uint64
 	for _, po := range pos {
 		ids = append(ids, po.OrderItemID)
 	}
-	pending := orderitem.And(orderitem.FulfillmentStatusNotIn("delivered", "refunded"), orderitem.Or(orderitem.FulfillmentTypeEQ(orderitem.FulfillmentTypeManual), orderitem.FulfillmentStatusIn("manual", "failed"), orderitem.IDIn(ids...)))
-	return c.Order.Query().Where(order.StatusIn(order.StatusPaid, order.StatusFulfilling, order.StatusPartiallyDelivered), order.HasItemsWith(pending)).WithItems(func(q *ent.OrderItemQuery) { q.Where(pending) }).Order(ent.Desc(order.FieldID)).Offset((page - 1) * size).Limit(size).All(ctx)
+	physical := orderitem.And(orderitem.GoodsTypeEQ("physical"), func(s *sql.Selector) {
+		s.Where(sql.ExprP(fmt.Sprintf("%s > %s + %s", s.C(orderitem.FieldQuantity), s.C(orderitem.FieldShippedQuantity), s.C(orderitem.FieldCanceledQuantity))))
+	})
+	manual := orderitem.And(orderitem.GoodsTypeNEQ("physical"), orderitem.FulfillmentStatusNotIn("delivered", "refunded"),
+		orderitem.Or(orderitem.FulfillmentTypeEQ(orderitem.FulfillmentTypeManual), orderitem.FulfillmentStatusIn("manual", "failed"), orderitem.IDIn(ids...)),
+		func(s *sql.Selector) {
+			s.Where(sql.ColumnsGT(s.C(orderitem.FieldQuantity), s.C(orderitem.FieldCanceledQuantity)))
+		})
+	pending := orderitem.Or(physical, manual)
+	rows, err := c.Order.Query().Where(order.SubsiteID(tenancy.FromContext(ctx).SubsiteID), order.StatusIn(order.StatusPaid, order.StatusFulfilling, order.StatusPartiallyDelivered), order.HasItemsWith(pending)).WithItems(func(q *ent.OrderItemQuery) { q.Where(pending) }).Order(ent.Desc(order.FieldID)).Offset((page - 1) * size).Limit(size + 1).All(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	hasMore := len(rows) > size
+	if hasMore {
+		rows = rows[:size]
+	}
+	return rows, hasMore, nil
 }
 
 // ListDeliveries 交付记录列表。
@@ -531,6 +560,13 @@ func (r *DeliveryRepoImpl) attachUpstreamDelivery(ctx context.Context, orderID, 
 	}
 	if done, err := check(); done || err != nil {
 		return err
+	}
+	oi, err = client.OrderItem.Get(ctx, itemID)
+	if err != nil {
+		return err
+	}
+	if oi.CanceledQuantity > 0 || oi.FulfillmentStatus == "refunded" {
+		return fmt.Errorf("商品已取消，不能交付上游内容")
 	}
 	processing, err := client.RefundOrder.Query().Where(refundorder.OrderID(o.ID), refundorder.StatusEQ(refundorder.StatusProcessing)).Exist(ctx)
 	if err != nil {

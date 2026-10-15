@@ -136,7 +136,7 @@ func (r *ResellerRepo) ProfileByUser(ctx context.Context, userID uint64) (*ent.R
 // UpsertPricing 定价规则（SKU>商品>分站默认三级之一）。
 // value 语义随 mode：markup_percent=万分比；fixed_markup/fixed_price=分。
 // 上限校验：markup_percent 不得超 profile.max_markup_percent（百分×100）。
-func (r *ResellerRepo) UpsertPricing(ctx context.Context, subsiteID, productID, skuID uint64, mode string, value int64, maxMarkupPercent float64) (*ent.ResellerPricing, error) {
+func (r *ResellerRepo) upsertPricing(ctx context.Context, subsiteID, productID, skuID uint64, mode string, value int64, maxMarkupPercent float64) (*ent.ResellerPricing, error) {
 	client := data.Client(ctx, r.data)
 	if mode == "markup_percent" && maxMarkupPercent > 0 && float64(value) > maxMarkupPercent*100 {
 		return nil, ErrMarkupExceed
@@ -285,9 +285,8 @@ func (r *ResellerRepo) ConfirmDue(ctx context.Context, now time.Time, limit int)
 	}
 	n := 0
 	for _, e := range rows {
-		if _, err := client.ResellerLedgerEntry.UpdateOneID(e.ID).
-			SetStatus(resellerledgerentry.StatusAvailable).Save(ctx); err == nil {
-			n++
+		if count, err := client.ResellerLedgerEntry.Update().Where(resellerledgerentry.ID(e.ID), resellerledgerentry.StatusEQ(resellerledgerentry.StatusPending), resellerledgerentry.Amount(e.Amount)).SetStatus(resellerledgerentry.StatusAvailable).Save(ctx); err == nil {
+			n += count
 		}
 	}
 	return n, nil
@@ -315,9 +314,9 @@ func (r *ResellerRepo) updateBalance(ctx context.Context, subsiteID uint64, avai
 		return err
 	}
 	_, err = client.ResellerBalanceAccount.UpdateOneID(acc.ID).
-		SetAvailable(acc.Available + availDelta).
-		SetLocked(acc.Locked + lockedDelta).
-		SetNegative(acc.Negative + negDelta).
+		AddAvailable(availDelta).
+		AddLocked(lockedDelta).
+		AddNegative(negDelta).
 		Save(ctx)
 	return err
 }
@@ -465,4 +464,13 @@ func (r *ResellerRepo) SetWhitelabel(ctx context.Context, siteID uint64, siteNam
 	}
 	_, err := upd.Save(ctx)
 	return err
+}
+
+func (r *ResellerRepo) UpsertPricing(ctx context.Context, subsiteID, productID, skuID uint64, mode string, value int64, maxMarkupPercent float64) (out *ent.ResellerPricing, err error) {
+	err = data.CurrencyTx(ctx, r.data, func(ctx context.Context) error {
+		var e error
+		out, e = r.upsertPricing(ctx, subsiteID, productID, skuID, mode, value, maxMarkupPercent)
+		return e
+	})
+	return out, err
 }

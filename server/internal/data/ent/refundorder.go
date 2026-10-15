@@ -3,6 +3,7 @@
 package ent
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -26,6 +27,14 @@ type RefundOrder struct {
 	OrderID uint64 `json:"order_id,omitempty"`
 	// 退款本金（分，可部分退款）
 	Amount int64 `json:"amount,omitempty"`
+	// ItemAllocations holds the value of the "item_allocations" field.
+	ItemAllocations []map[string]int64 `json:"item_allocations,omitempty"`
+	// 订单范围内的退款请求幂等摘要；历史记录为空
+	RequestKey string `json:"request_key,omitempty"`
+	// 退款请求内容摘要
+	RequestHash string `json:"request_hash,omitempty"`
+	// ShippingAmount holds the value of the "shipping_amount" field.
+	ShippingAmount int64 `json:"shipping_amount,omitempty"`
 	// 本次退还的支付手续费（分）
 	FeeAmount int64 `json:"fee_amount,omitempty"`
 	// 退款通道
@@ -69,9 +78,11 @@ func (*RefundOrder) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case refundorder.FieldID, refundorder.FieldOrderID, refundorder.FieldAmount, refundorder.FieldFeeAmount, refundorder.FieldOperatorID:
+		case refundorder.FieldItemAllocations:
+			values[i] = new([]byte)
+		case refundorder.FieldID, refundorder.FieldOrderID, refundorder.FieldAmount, refundorder.FieldShippingAmount, refundorder.FieldFeeAmount, refundorder.FieldOperatorID:
 			values[i] = new(sql.NullInt64)
-		case refundorder.FieldChannel, refundorder.FieldStatus, refundorder.FieldReason, refundorder.FieldUpstreamRefundID:
+		case refundorder.FieldRequestKey, refundorder.FieldRequestHash, refundorder.FieldChannel, refundorder.FieldStatus, refundorder.FieldReason, refundorder.FieldUpstreamRefundID:
 			values[i] = new(sql.NullString)
 		case refundorder.FieldCreatedAt, refundorder.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -119,6 +130,32 @@ func (_m *RefundOrder) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field amount", values[i])
 			} else if value.Valid {
 				_m.Amount = value.Int64
+			}
+		case refundorder.FieldItemAllocations:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field item_allocations", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.ItemAllocations); err != nil {
+					return fmt.Errorf("unmarshal field item_allocations: %w", err)
+				}
+			}
+		case refundorder.FieldRequestKey:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field request_key", values[i])
+			} else if value.Valid {
+				_m.RequestKey = value.String
+			}
+		case refundorder.FieldRequestHash:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field request_hash", values[i])
+			} else if value.Valid {
+				_m.RequestHash = value.String
+			}
+		case refundorder.FieldShippingAmount:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field shipping_amount", values[i])
+			} else if value.Valid {
+				_m.ShippingAmount = value.Int64
 			}
 		case refundorder.FieldFeeAmount:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -208,6 +245,18 @@ func (_m *RefundOrder) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("amount=")
 	builder.WriteString(fmt.Sprintf("%v", _m.Amount))
+	builder.WriteString(", ")
+	builder.WriteString("item_allocations=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ItemAllocations))
+	builder.WriteString(", ")
+	builder.WriteString("request_key=")
+	builder.WriteString(_m.RequestKey)
+	builder.WriteString(", ")
+	builder.WriteString("request_hash=")
+	builder.WriteString(_m.RequestHash)
+	builder.WriteString(", ")
+	builder.WriteString("shipping_amount=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ShippingAmount))
 	builder.WriteString(", ")
 	builder.WriteString("fee_amount=")
 	builder.WriteString(fmt.Sprintf("%v", _m.FeeAmount))

@@ -66,6 +66,40 @@ func (_c *ProductCreate) SetNillableSubsiteID(v *uint64) *ProductCreate {
 	return _c
 }
 
+// SetProductKind sets the "product_kind" field.
+func (_c *ProductCreate) SetProductKind(v string) *ProductCreate {
+	_c.mutation.SetProductKind(v)
+	return _c
+}
+
+// SetNillableProductKind sets the "product_kind" field if the given value is not nil.
+func (_c *ProductCreate) SetNillableProductKind(v *string) *ProductCreate {
+	if v != nil {
+		_c.SetProductKind(*v)
+	}
+	return _c
+}
+
+// SetDeliveryKind sets the "delivery_kind" field.
+func (_c *ProductCreate) SetDeliveryKind(v string) *ProductCreate {
+	_c.mutation.SetDeliveryKind(v)
+	return _c
+}
+
+// SetNillableDeliveryKind sets the "delivery_kind" field if the given value is not nil.
+func (_c *ProductCreate) SetNillableDeliveryKind(v *string) *ProductCreate {
+	if v != nil {
+		_c.SetDeliveryKind(*v)
+	}
+	return _c
+}
+
+// SetSmsProduct sets the "sms_product" field.
+func (_c *ProductCreate) SetSmsProduct(v map[string]string) *ProductCreate {
+	_c.mutation.SetSmsProduct(v)
+	return _c
+}
+
 // SetCategoryID sets the "category_id" field.
 func (_c *ProductCreate) SetCategoryID(v uint64) *ProductCreate {
 	_c.mutation.SetCategoryID(v)
@@ -97,6 +131,110 @@ func (_c *ProductCreate) SetNillableCategoryProtected(v *bool) *ProductCreate {
 // SetName sets the "name" field.
 func (_c *ProductCreate) SetName(v string) *ProductCreate {
 	_c.mutation.SetName(v)
+	return _c
+}
+
+// SetGoodsType sets the "goods_type" field.
+func (_c *ProductCreate) SetGoodsType(v string) *ProductCreate {
+	_c.mutation.SetGoodsType(v)
+	return _c
+}
+
+// SetNillableGoodsType sets the "goods_type" field if the given value is not nil.
+func (_c *ProductCreate) SetNillableGoodsType(v *string) *ProductCreate {
+	if v != nil {
+		_c.SetGoodsType(*v)
+	}
+	return _c
+}
+
+// SetProductProperty sets the "product_property" field.
+func (_c *ProductCreate) SetProductProperty(v string) *ProductCreate {
+	_c.mutation.SetProductProperty(v)
+	return _c
+}
+
+// SetNillableProductProperty sets the "product_property" field if the given value is not nil.
+func (_c *ProductCreate) SetNillableProductProperty(v *string) *ProductCreate {
+	if v != nil {
+		_c.SetProductProperty(*v)
+	}
+	return _c
+}
+
+// SetTrackInventory sets the "track_inventory" field.
+func (_c *ProductCreate) SetTrackInventory(v bool) *ProductCreate {
+	_c.mutation.SetTrackInventory(v)
+	return _c
+}
+
+// SetNillableTrackInventory sets the "track_inventory" field if the given value is not nil.
+func (_c *ProductCreate) SetNillableTrackInventory(v *bool) *ProductCreate {
+	if v != nil {
+		_c.SetTrackInventory(*v)
+	}
+	return _c
+}
+
+// SetSalesVisible sets the "sales_visible" field.
+func (_c *ProductCreate) SetSalesVisible(v bool) *ProductCreate {
+	_c.mutation.SetSalesVisible(v)
+	return _c
+}
+
+// SetNillableSalesVisible sets the "sales_visible" field if the given value is not nil.
+func (_c *ProductCreate) SetNillableSalesVisible(v *bool) *ProductCreate {
+	if v != nil {
+		_c.SetSalesVisible(*v)
+	}
+	return _c
+}
+
+// SetShippingMode sets the "shipping_mode" field.
+func (_c *ProductCreate) SetShippingMode(v string) *ProductCreate {
+	_c.mutation.SetShippingMode(v)
+	return _c
+}
+
+// SetNillableShippingMode sets the "shipping_mode" field if the given value is not nil.
+func (_c *ProductCreate) SetNillableShippingMode(v *string) *ProductCreate {
+	if v != nil {
+		_c.SetShippingMode(*v)
+	}
+	return _c
+}
+
+// SetShippingFee sets the "shipping_fee" field.
+func (_c *ProductCreate) SetShippingFee(v int64) *ProductCreate {
+	_c.mutation.SetShippingFee(v)
+	return _c
+}
+
+// SetNillableShippingFee sets the "shipping_fee" field if the given value is not nil.
+func (_c *ProductCreate) SetNillableShippingFee(v *int64) *ProductCreate {
+	if v != nil {
+		_c.SetShippingFee(*v)
+	}
+	return _c
+}
+
+// SetShippingCountries sets the "shipping_countries" field.
+func (_c *ProductCreate) SetShippingCountries(v []string) *ProductCreate {
+	_c.mutation.SetShippingCountries(v)
+	return _c
+}
+
+// SetPhysicalStock sets the "physical_stock" field.
+func (_c *ProductCreate) SetPhysicalStock(v int64) *ProductCreate {
+	_c.mutation.SetPhysicalStock(v)
+	return _c
+}
+
+// SetNillablePhysicalStock sets the "physical_stock" field if the given value is not nil.
+func (_c *ProductCreate) SetNillablePhysicalStock(v *int64) *ProductCreate {
+	if v != nil {
+		_c.SetPhysicalStock(*v)
+	}
 	return _c
 }
 
@@ -635,7 +773,9 @@ func (_c *ProductCreate) Mutation() *ProductMutation {
 
 // Save creates the Product in the database.
 func (_c *ProductCreate) Save(ctx context.Context) (*Product, error) {
-	_c.defaults()
+	if err := _c.defaults(); err != nil {
+		return nil, err
+	}
 	return withHooks(ctx, _c.sqlSave, _c.mutation, _c.hooks)
 }
 
@@ -662,12 +802,18 @@ func (_c *ProductCreate) ExecX(ctx context.Context) {
 }
 
 // defaults sets the default values of the builder before save.
-func (_c *ProductCreate) defaults() {
+func (_c *ProductCreate) defaults() error {
 	if _, ok := _c.mutation.CreatedAt(); !ok {
+		if product.DefaultCreatedAt == nil {
+			return fmt.Errorf("ent: uninitialized product.DefaultCreatedAt (forgotten import ent/runtime?)")
+		}
 		v := product.DefaultCreatedAt()
 		_c.mutation.SetCreatedAt(v)
 	}
 	if _, ok := _c.mutation.UpdatedAt(); !ok {
+		if product.DefaultUpdatedAt == nil {
+			return fmt.Errorf("ent: uninitialized product.DefaultUpdatedAt (forgotten import ent/runtime?)")
+		}
 		v := product.DefaultUpdatedAt()
 		_c.mutation.SetUpdatedAt(v)
 	}
@@ -675,9 +821,45 @@ func (_c *ProductCreate) defaults() {
 		v := product.DefaultSubsiteID
 		_c.mutation.SetSubsiteID(v)
 	}
+	if _, ok := _c.mutation.ProductKind(); !ok {
+		v := product.DefaultProductKind
+		_c.mutation.SetProductKind(v)
+	}
+	if _, ok := _c.mutation.DeliveryKind(); !ok {
+		v := product.DefaultDeliveryKind
+		_c.mutation.SetDeliveryKind(v)
+	}
 	if _, ok := _c.mutation.CategoryProtected(); !ok {
 		v := product.DefaultCategoryProtected
 		_c.mutation.SetCategoryProtected(v)
+	}
+	if _, ok := _c.mutation.GoodsType(); !ok {
+		v := product.DefaultGoodsType
+		_c.mutation.SetGoodsType(v)
+	}
+	if _, ok := _c.mutation.ProductProperty(); !ok {
+		v := product.DefaultProductProperty
+		_c.mutation.SetProductProperty(v)
+	}
+	if _, ok := _c.mutation.TrackInventory(); !ok {
+		v := product.DefaultTrackInventory
+		_c.mutation.SetTrackInventory(v)
+	}
+	if _, ok := _c.mutation.SalesVisible(); !ok {
+		v := product.DefaultSalesVisible
+		_c.mutation.SetSalesVisible(v)
+	}
+	if _, ok := _c.mutation.ShippingMode(); !ok {
+		v := product.DefaultShippingMode
+		_c.mutation.SetShippingMode(v)
+	}
+	if _, ok := _c.mutation.ShippingFee(); !ok {
+		v := product.DefaultShippingFee
+		_c.mutation.SetShippingFee(v)
+	}
+	if _, ok := _c.mutation.PhysicalStock(); !ok {
+		v := product.DefaultPhysicalStock
+		_c.mutation.SetPhysicalStock(v)
 	}
 	if _, ok := _c.mutation.CoverProtected(); !ok {
 		v := product.DefaultCoverProtected
@@ -787,6 +969,7 @@ func (_c *ProductCreate) defaults() {
 		v := product.DefaultLockedBy
 		_c.mutation.SetLockedBy(v)
 	}
+	return nil
 }
 
 // check runs all checks and user-defined validators on the builder.
@@ -800,6 +983,12 @@ func (_c *ProductCreate) check() error {
 	if _, ok := _c.mutation.SubsiteID(); !ok {
 		return &ValidationError{Name: "subsite_id", err: errors.New(`ent: missing required field "Product.subsite_id"`)}
 	}
+	if _, ok := _c.mutation.ProductKind(); !ok {
+		return &ValidationError{Name: "product_kind", err: errors.New(`ent: missing required field "Product.product_kind"`)}
+	}
+	if _, ok := _c.mutation.DeliveryKind(); !ok {
+		return &ValidationError{Name: "delivery_kind", err: errors.New(`ent: missing required field "Product.delivery_kind"`)}
+	}
 	if _, ok := _c.mutation.CategoryProtected(); !ok {
 		return &ValidationError{Name: "category_protected", err: errors.New(`ent: missing required field "Product.category_protected"`)}
 	}
@@ -810,6 +999,32 @@ func (_c *ProductCreate) check() error {
 		if err := product.NameValidator(v); err != nil {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "Product.name": %w`, err)}
 		}
+	}
+	if _, ok := _c.mutation.GoodsType(); !ok {
+		return &ValidationError{Name: "goods_type", err: errors.New(`ent: missing required field "Product.goods_type"`)}
+	}
+	if _, ok := _c.mutation.ProductProperty(); !ok {
+		return &ValidationError{Name: "product_property", err: errors.New(`ent: missing required field "Product.product_property"`)}
+	}
+	if v, ok := _c.mutation.ProductProperty(); ok {
+		if err := product.ProductPropertyValidator(v); err != nil {
+			return &ValidationError{Name: "product_property", err: fmt.Errorf(`ent: validator failed for field "Product.product_property": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.TrackInventory(); !ok {
+		return &ValidationError{Name: "track_inventory", err: errors.New(`ent: missing required field "Product.track_inventory"`)}
+	}
+	if _, ok := _c.mutation.SalesVisible(); !ok {
+		return &ValidationError{Name: "sales_visible", err: errors.New(`ent: missing required field "Product.sales_visible"`)}
+	}
+	if _, ok := _c.mutation.ShippingMode(); !ok {
+		return &ValidationError{Name: "shipping_mode", err: errors.New(`ent: missing required field "Product.shipping_mode"`)}
+	}
+	if _, ok := _c.mutation.ShippingFee(); !ok {
+		return &ValidationError{Name: "shipping_fee", err: errors.New(`ent: missing required field "Product.shipping_fee"`)}
+	}
+	if _, ok := _c.mutation.PhysicalStock(); !ok {
+		return &ValidationError{Name: "physical_stock", err: errors.New(`ent: missing required field "Product.physical_stock"`)}
 	}
 	if _, ok := _c.mutation.Slug(); !ok {
 		return &ValidationError{Name: "slug", err: errors.New(`ent: missing required field "Product.slug"`)}
@@ -975,6 +1190,18 @@ func (_c *ProductCreate) createSpec() (*Product, *sqlgraph.CreateSpec) {
 		_spec.SetField(product.FieldSubsiteID, field.TypeUint64, value)
 		_node.SubsiteID = value
 	}
+	if value, ok := _c.mutation.ProductKind(); ok {
+		_spec.SetField(product.FieldProductKind, field.TypeString, value)
+		_node.ProductKind = value
+	}
+	if value, ok := _c.mutation.DeliveryKind(); ok {
+		_spec.SetField(product.FieldDeliveryKind, field.TypeString, value)
+		_node.DeliveryKind = value
+	}
+	if value, ok := _c.mutation.SmsProduct(); ok {
+		_spec.SetField(product.FieldSmsProduct, field.TypeJSON, value)
+		_node.SmsProduct = value
+	}
 	if value, ok := _c.mutation.CategoryID(); ok {
 		_spec.SetField(product.FieldCategoryID, field.TypeUint64, value)
 		_node.CategoryID = value
@@ -986,6 +1213,38 @@ func (_c *ProductCreate) createSpec() (*Product, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Name(); ok {
 		_spec.SetField(product.FieldName, field.TypeString, value)
 		_node.Name = value
+	}
+	if value, ok := _c.mutation.GoodsType(); ok {
+		_spec.SetField(product.FieldGoodsType, field.TypeString, value)
+		_node.GoodsType = value
+	}
+	if value, ok := _c.mutation.ProductProperty(); ok {
+		_spec.SetField(product.FieldProductProperty, field.TypeString, value)
+		_node.ProductProperty = value
+	}
+	if value, ok := _c.mutation.TrackInventory(); ok {
+		_spec.SetField(product.FieldTrackInventory, field.TypeBool, value)
+		_node.TrackInventory = value
+	}
+	if value, ok := _c.mutation.SalesVisible(); ok {
+		_spec.SetField(product.FieldSalesVisible, field.TypeBool, value)
+		_node.SalesVisible = value
+	}
+	if value, ok := _c.mutation.ShippingMode(); ok {
+		_spec.SetField(product.FieldShippingMode, field.TypeString, value)
+		_node.ShippingMode = value
+	}
+	if value, ok := _c.mutation.ShippingFee(); ok {
+		_spec.SetField(product.FieldShippingFee, field.TypeInt64, value)
+		_node.ShippingFee = value
+	}
+	if value, ok := _c.mutation.ShippingCountries(); ok {
+		_spec.SetField(product.FieldShippingCountries, field.TypeJSON, value)
+		_node.ShippingCountries = value
+	}
+	if value, ok := _c.mutation.PhysicalStock(); ok {
+		_spec.SetField(product.FieldPhysicalStock, field.TypeInt64, value)
+		_node.PhysicalStock = value
 	}
 	if value, ok := _c.mutation.Slug(); ok {
 		_spec.SetField(product.FieldSlug, field.TypeString, value)
@@ -1253,6 +1512,48 @@ func (u *ProductUpsert) AddSubsiteID(v uint64) *ProductUpsert {
 	return u
 }
 
+// SetProductKind sets the "product_kind" field.
+func (u *ProductUpsert) SetProductKind(v string) *ProductUpsert {
+	u.Set(product.FieldProductKind, v)
+	return u
+}
+
+// UpdateProductKind sets the "product_kind" field to the value that was provided on create.
+func (u *ProductUpsert) UpdateProductKind() *ProductUpsert {
+	u.SetExcluded(product.FieldProductKind)
+	return u
+}
+
+// SetDeliveryKind sets the "delivery_kind" field.
+func (u *ProductUpsert) SetDeliveryKind(v string) *ProductUpsert {
+	u.Set(product.FieldDeliveryKind, v)
+	return u
+}
+
+// UpdateDeliveryKind sets the "delivery_kind" field to the value that was provided on create.
+func (u *ProductUpsert) UpdateDeliveryKind() *ProductUpsert {
+	u.SetExcluded(product.FieldDeliveryKind)
+	return u
+}
+
+// SetSmsProduct sets the "sms_product" field.
+func (u *ProductUpsert) SetSmsProduct(v map[string]string) *ProductUpsert {
+	u.Set(product.FieldSmsProduct, v)
+	return u
+}
+
+// UpdateSmsProduct sets the "sms_product" field to the value that was provided on create.
+func (u *ProductUpsert) UpdateSmsProduct() *ProductUpsert {
+	u.SetExcluded(product.FieldSmsProduct)
+	return u
+}
+
+// ClearSmsProduct clears the value of the "sms_product" field.
+func (u *ProductUpsert) ClearSmsProduct() *ProductUpsert {
+	u.SetNull(product.FieldSmsProduct)
+	return u
+}
+
 // SetCategoryID sets the "category_id" field.
 func (u *ProductUpsert) SetCategoryID(v uint64) *ProductUpsert {
 	u.Set(product.FieldCategoryID, v)
@@ -1298,6 +1599,120 @@ func (u *ProductUpsert) SetName(v string) *ProductUpsert {
 // UpdateName sets the "name" field to the value that was provided on create.
 func (u *ProductUpsert) UpdateName() *ProductUpsert {
 	u.SetExcluded(product.FieldName)
+	return u
+}
+
+// SetGoodsType sets the "goods_type" field.
+func (u *ProductUpsert) SetGoodsType(v string) *ProductUpsert {
+	u.Set(product.FieldGoodsType, v)
+	return u
+}
+
+// UpdateGoodsType sets the "goods_type" field to the value that was provided on create.
+func (u *ProductUpsert) UpdateGoodsType() *ProductUpsert {
+	u.SetExcluded(product.FieldGoodsType)
+	return u
+}
+
+// SetProductProperty sets the "product_property" field.
+func (u *ProductUpsert) SetProductProperty(v string) *ProductUpsert {
+	u.Set(product.FieldProductProperty, v)
+	return u
+}
+
+// UpdateProductProperty sets the "product_property" field to the value that was provided on create.
+func (u *ProductUpsert) UpdateProductProperty() *ProductUpsert {
+	u.SetExcluded(product.FieldProductProperty)
+	return u
+}
+
+// SetTrackInventory sets the "track_inventory" field.
+func (u *ProductUpsert) SetTrackInventory(v bool) *ProductUpsert {
+	u.Set(product.FieldTrackInventory, v)
+	return u
+}
+
+// UpdateTrackInventory sets the "track_inventory" field to the value that was provided on create.
+func (u *ProductUpsert) UpdateTrackInventory() *ProductUpsert {
+	u.SetExcluded(product.FieldTrackInventory)
+	return u
+}
+
+// SetSalesVisible sets the "sales_visible" field.
+func (u *ProductUpsert) SetSalesVisible(v bool) *ProductUpsert {
+	u.Set(product.FieldSalesVisible, v)
+	return u
+}
+
+// UpdateSalesVisible sets the "sales_visible" field to the value that was provided on create.
+func (u *ProductUpsert) UpdateSalesVisible() *ProductUpsert {
+	u.SetExcluded(product.FieldSalesVisible)
+	return u
+}
+
+// SetShippingMode sets the "shipping_mode" field.
+func (u *ProductUpsert) SetShippingMode(v string) *ProductUpsert {
+	u.Set(product.FieldShippingMode, v)
+	return u
+}
+
+// UpdateShippingMode sets the "shipping_mode" field to the value that was provided on create.
+func (u *ProductUpsert) UpdateShippingMode() *ProductUpsert {
+	u.SetExcluded(product.FieldShippingMode)
+	return u
+}
+
+// SetShippingFee sets the "shipping_fee" field.
+func (u *ProductUpsert) SetShippingFee(v int64) *ProductUpsert {
+	u.Set(product.FieldShippingFee, v)
+	return u
+}
+
+// UpdateShippingFee sets the "shipping_fee" field to the value that was provided on create.
+func (u *ProductUpsert) UpdateShippingFee() *ProductUpsert {
+	u.SetExcluded(product.FieldShippingFee)
+	return u
+}
+
+// AddShippingFee adds v to the "shipping_fee" field.
+func (u *ProductUpsert) AddShippingFee(v int64) *ProductUpsert {
+	u.Add(product.FieldShippingFee, v)
+	return u
+}
+
+// SetShippingCountries sets the "shipping_countries" field.
+func (u *ProductUpsert) SetShippingCountries(v []string) *ProductUpsert {
+	u.Set(product.FieldShippingCountries, v)
+	return u
+}
+
+// UpdateShippingCountries sets the "shipping_countries" field to the value that was provided on create.
+func (u *ProductUpsert) UpdateShippingCountries() *ProductUpsert {
+	u.SetExcluded(product.FieldShippingCountries)
+	return u
+}
+
+// ClearShippingCountries clears the value of the "shipping_countries" field.
+func (u *ProductUpsert) ClearShippingCountries() *ProductUpsert {
+	u.SetNull(product.FieldShippingCountries)
+	return u
+}
+
+// SetPhysicalStock sets the "physical_stock" field.
+func (u *ProductUpsert) SetPhysicalStock(v int64) *ProductUpsert {
+	u.Set(product.FieldPhysicalStock, v)
+	return u
+}
+
+// UpdatePhysicalStock sets the "physical_stock" field to the value that was provided on create.
+func (u *ProductUpsert) UpdatePhysicalStock() *ProductUpsert {
+	u.SetExcluded(product.FieldPhysicalStock)
+	return u
+}
+
+// AddPhysicalStock adds v to the "physical_stock" field.
+func (u *ProductUpsert) AddPhysicalStock(v int64) *ProductUpsert {
+	u.Add(product.FieldPhysicalStock, v)
 	return u
 }
 
@@ -1993,6 +2408,55 @@ func (u *ProductUpsertOne) UpdateSubsiteID() *ProductUpsertOne {
 	})
 }
 
+// SetProductKind sets the "product_kind" field.
+func (u *ProductUpsertOne) SetProductKind(v string) *ProductUpsertOne {
+	return u.Update(func(s *ProductUpsert) {
+		s.SetProductKind(v)
+	})
+}
+
+// UpdateProductKind sets the "product_kind" field to the value that was provided on create.
+func (u *ProductUpsertOne) UpdateProductKind() *ProductUpsertOne {
+	return u.Update(func(s *ProductUpsert) {
+		s.UpdateProductKind()
+	})
+}
+
+// SetDeliveryKind sets the "delivery_kind" field.
+func (u *ProductUpsertOne) SetDeliveryKind(v string) *ProductUpsertOne {
+	return u.Update(func(s *ProductUpsert) {
+		s.SetDeliveryKind(v)
+	})
+}
+
+// UpdateDeliveryKind sets the "delivery_kind" field to the value that was provided on create.
+func (u *ProductUpsertOne) UpdateDeliveryKind() *ProductUpsertOne {
+	return u.Update(func(s *ProductUpsert) {
+		s.UpdateDeliveryKind()
+	})
+}
+
+// SetSmsProduct sets the "sms_product" field.
+func (u *ProductUpsertOne) SetSmsProduct(v map[string]string) *ProductUpsertOne {
+	return u.Update(func(s *ProductUpsert) {
+		s.SetSmsProduct(v)
+	})
+}
+
+// UpdateSmsProduct sets the "sms_product" field to the value that was provided on create.
+func (u *ProductUpsertOne) UpdateSmsProduct() *ProductUpsertOne {
+	return u.Update(func(s *ProductUpsert) {
+		s.UpdateSmsProduct()
+	})
+}
+
+// ClearSmsProduct clears the value of the "sms_product" field.
+func (u *ProductUpsertOne) ClearSmsProduct() *ProductUpsertOne {
+	return u.Update(func(s *ProductUpsert) {
+		s.ClearSmsProduct()
+	})
+}
+
 // SetCategoryID sets the "category_id" field.
 func (u *ProductUpsertOne) SetCategoryID(v uint64) *ProductUpsertOne {
 	return u.Update(func(s *ProductUpsert) {
@@ -2046,6 +2510,139 @@ func (u *ProductUpsertOne) SetName(v string) *ProductUpsertOne {
 func (u *ProductUpsertOne) UpdateName() *ProductUpsertOne {
 	return u.Update(func(s *ProductUpsert) {
 		s.UpdateName()
+	})
+}
+
+// SetGoodsType sets the "goods_type" field.
+func (u *ProductUpsertOne) SetGoodsType(v string) *ProductUpsertOne {
+	return u.Update(func(s *ProductUpsert) {
+		s.SetGoodsType(v)
+	})
+}
+
+// UpdateGoodsType sets the "goods_type" field to the value that was provided on create.
+func (u *ProductUpsertOne) UpdateGoodsType() *ProductUpsertOne {
+	return u.Update(func(s *ProductUpsert) {
+		s.UpdateGoodsType()
+	})
+}
+
+// SetProductProperty sets the "product_property" field.
+func (u *ProductUpsertOne) SetProductProperty(v string) *ProductUpsertOne {
+	return u.Update(func(s *ProductUpsert) {
+		s.SetProductProperty(v)
+	})
+}
+
+// UpdateProductProperty sets the "product_property" field to the value that was provided on create.
+func (u *ProductUpsertOne) UpdateProductProperty() *ProductUpsertOne {
+	return u.Update(func(s *ProductUpsert) {
+		s.UpdateProductProperty()
+	})
+}
+
+// SetTrackInventory sets the "track_inventory" field.
+func (u *ProductUpsertOne) SetTrackInventory(v bool) *ProductUpsertOne {
+	return u.Update(func(s *ProductUpsert) {
+		s.SetTrackInventory(v)
+	})
+}
+
+// UpdateTrackInventory sets the "track_inventory" field to the value that was provided on create.
+func (u *ProductUpsertOne) UpdateTrackInventory() *ProductUpsertOne {
+	return u.Update(func(s *ProductUpsert) {
+		s.UpdateTrackInventory()
+	})
+}
+
+// SetSalesVisible sets the "sales_visible" field.
+func (u *ProductUpsertOne) SetSalesVisible(v bool) *ProductUpsertOne {
+	return u.Update(func(s *ProductUpsert) {
+		s.SetSalesVisible(v)
+	})
+}
+
+// UpdateSalesVisible sets the "sales_visible" field to the value that was provided on create.
+func (u *ProductUpsertOne) UpdateSalesVisible() *ProductUpsertOne {
+	return u.Update(func(s *ProductUpsert) {
+		s.UpdateSalesVisible()
+	})
+}
+
+// SetShippingMode sets the "shipping_mode" field.
+func (u *ProductUpsertOne) SetShippingMode(v string) *ProductUpsertOne {
+	return u.Update(func(s *ProductUpsert) {
+		s.SetShippingMode(v)
+	})
+}
+
+// UpdateShippingMode sets the "shipping_mode" field to the value that was provided on create.
+func (u *ProductUpsertOne) UpdateShippingMode() *ProductUpsertOne {
+	return u.Update(func(s *ProductUpsert) {
+		s.UpdateShippingMode()
+	})
+}
+
+// SetShippingFee sets the "shipping_fee" field.
+func (u *ProductUpsertOne) SetShippingFee(v int64) *ProductUpsertOne {
+	return u.Update(func(s *ProductUpsert) {
+		s.SetShippingFee(v)
+	})
+}
+
+// AddShippingFee adds v to the "shipping_fee" field.
+func (u *ProductUpsertOne) AddShippingFee(v int64) *ProductUpsertOne {
+	return u.Update(func(s *ProductUpsert) {
+		s.AddShippingFee(v)
+	})
+}
+
+// UpdateShippingFee sets the "shipping_fee" field to the value that was provided on create.
+func (u *ProductUpsertOne) UpdateShippingFee() *ProductUpsertOne {
+	return u.Update(func(s *ProductUpsert) {
+		s.UpdateShippingFee()
+	})
+}
+
+// SetShippingCountries sets the "shipping_countries" field.
+func (u *ProductUpsertOne) SetShippingCountries(v []string) *ProductUpsertOne {
+	return u.Update(func(s *ProductUpsert) {
+		s.SetShippingCountries(v)
+	})
+}
+
+// UpdateShippingCountries sets the "shipping_countries" field to the value that was provided on create.
+func (u *ProductUpsertOne) UpdateShippingCountries() *ProductUpsertOne {
+	return u.Update(func(s *ProductUpsert) {
+		s.UpdateShippingCountries()
+	})
+}
+
+// ClearShippingCountries clears the value of the "shipping_countries" field.
+func (u *ProductUpsertOne) ClearShippingCountries() *ProductUpsertOne {
+	return u.Update(func(s *ProductUpsert) {
+		s.ClearShippingCountries()
+	})
+}
+
+// SetPhysicalStock sets the "physical_stock" field.
+func (u *ProductUpsertOne) SetPhysicalStock(v int64) *ProductUpsertOne {
+	return u.Update(func(s *ProductUpsert) {
+		s.SetPhysicalStock(v)
+	})
+}
+
+// AddPhysicalStock adds v to the "physical_stock" field.
+func (u *ProductUpsertOne) AddPhysicalStock(v int64) *ProductUpsertOne {
+	return u.Update(func(s *ProductUpsert) {
+		s.AddPhysicalStock(v)
+	})
+}
+
+// UpdatePhysicalStock sets the "physical_stock" field to the value that was provided on create.
+func (u *ProductUpsertOne) UpdatePhysicalStock() *ProductUpsertOne {
+	return u.Update(func(s *ProductUpsert) {
+		s.UpdatePhysicalStock()
 	})
 }
 
@@ -3008,6 +3605,55 @@ func (u *ProductUpsertBulk) UpdateSubsiteID() *ProductUpsertBulk {
 	})
 }
 
+// SetProductKind sets the "product_kind" field.
+func (u *ProductUpsertBulk) SetProductKind(v string) *ProductUpsertBulk {
+	return u.Update(func(s *ProductUpsert) {
+		s.SetProductKind(v)
+	})
+}
+
+// UpdateProductKind sets the "product_kind" field to the value that was provided on create.
+func (u *ProductUpsertBulk) UpdateProductKind() *ProductUpsertBulk {
+	return u.Update(func(s *ProductUpsert) {
+		s.UpdateProductKind()
+	})
+}
+
+// SetDeliveryKind sets the "delivery_kind" field.
+func (u *ProductUpsertBulk) SetDeliveryKind(v string) *ProductUpsertBulk {
+	return u.Update(func(s *ProductUpsert) {
+		s.SetDeliveryKind(v)
+	})
+}
+
+// UpdateDeliveryKind sets the "delivery_kind" field to the value that was provided on create.
+func (u *ProductUpsertBulk) UpdateDeliveryKind() *ProductUpsertBulk {
+	return u.Update(func(s *ProductUpsert) {
+		s.UpdateDeliveryKind()
+	})
+}
+
+// SetSmsProduct sets the "sms_product" field.
+func (u *ProductUpsertBulk) SetSmsProduct(v map[string]string) *ProductUpsertBulk {
+	return u.Update(func(s *ProductUpsert) {
+		s.SetSmsProduct(v)
+	})
+}
+
+// UpdateSmsProduct sets the "sms_product" field to the value that was provided on create.
+func (u *ProductUpsertBulk) UpdateSmsProduct() *ProductUpsertBulk {
+	return u.Update(func(s *ProductUpsert) {
+		s.UpdateSmsProduct()
+	})
+}
+
+// ClearSmsProduct clears the value of the "sms_product" field.
+func (u *ProductUpsertBulk) ClearSmsProduct() *ProductUpsertBulk {
+	return u.Update(func(s *ProductUpsert) {
+		s.ClearSmsProduct()
+	})
+}
+
 // SetCategoryID sets the "category_id" field.
 func (u *ProductUpsertBulk) SetCategoryID(v uint64) *ProductUpsertBulk {
 	return u.Update(func(s *ProductUpsert) {
@@ -3061,6 +3707,139 @@ func (u *ProductUpsertBulk) SetName(v string) *ProductUpsertBulk {
 func (u *ProductUpsertBulk) UpdateName() *ProductUpsertBulk {
 	return u.Update(func(s *ProductUpsert) {
 		s.UpdateName()
+	})
+}
+
+// SetGoodsType sets the "goods_type" field.
+func (u *ProductUpsertBulk) SetGoodsType(v string) *ProductUpsertBulk {
+	return u.Update(func(s *ProductUpsert) {
+		s.SetGoodsType(v)
+	})
+}
+
+// UpdateGoodsType sets the "goods_type" field to the value that was provided on create.
+func (u *ProductUpsertBulk) UpdateGoodsType() *ProductUpsertBulk {
+	return u.Update(func(s *ProductUpsert) {
+		s.UpdateGoodsType()
+	})
+}
+
+// SetProductProperty sets the "product_property" field.
+func (u *ProductUpsertBulk) SetProductProperty(v string) *ProductUpsertBulk {
+	return u.Update(func(s *ProductUpsert) {
+		s.SetProductProperty(v)
+	})
+}
+
+// UpdateProductProperty sets the "product_property" field to the value that was provided on create.
+func (u *ProductUpsertBulk) UpdateProductProperty() *ProductUpsertBulk {
+	return u.Update(func(s *ProductUpsert) {
+		s.UpdateProductProperty()
+	})
+}
+
+// SetTrackInventory sets the "track_inventory" field.
+func (u *ProductUpsertBulk) SetTrackInventory(v bool) *ProductUpsertBulk {
+	return u.Update(func(s *ProductUpsert) {
+		s.SetTrackInventory(v)
+	})
+}
+
+// UpdateTrackInventory sets the "track_inventory" field to the value that was provided on create.
+func (u *ProductUpsertBulk) UpdateTrackInventory() *ProductUpsertBulk {
+	return u.Update(func(s *ProductUpsert) {
+		s.UpdateTrackInventory()
+	})
+}
+
+// SetSalesVisible sets the "sales_visible" field.
+func (u *ProductUpsertBulk) SetSalesVisible(v bool) *ProductUpsertBulk {
+	return u.Update(func(s *ProductUpsert) {
+		s.SetSalesVisible(v)
+	})
+}
+
+// UpdateSalesVisible sets the "sales_visible" field to the value that was provided on create.
+func (u *ProductUpsertBulk) UpdateSalesVisible() *ProductUpsertBulk {
+	return u.Update(func(s *ProductUpsert) {
+		s.UpdateSalesVisible()
+	})
+}
+
+// SetShippingMode sets the "shipping_mode" field.
+func (u *ProductUpsertBulk) SetShippingMode(v string) *ProductUpsertBulk {
+	return u.Update(func(s *ProductUpsert) {
+		s.SetShippingMode(v)
+	})
+}
+
+// UpdateShippingMode sets the "shipping_mode" field to the value that was provided on create.
+func (u *ProductUpsertBulk) UpdateShippingMode() *ProductUpsertBulk {
+	return u.Update(func(s *ProductUpsert) {
+		s.UpdateShippingMode()
+	})
+}
+
+// SetShippingFee sets the "shipping_fee" field.
+func (u *ProductUpsertBulk) SetShippingFee(v int64) *ProductUpsertBulk {
+	return u.Update(func(s *ProductUpsert) {
+		s.SetShippingFee(v)
+	})
+}
+
+// AddShippingFee adds v to the "shipping_fee" field.
+func (u *ProductUpsertBulk) AddShippingFee(v int64) *ProductUpsertBulk {
+	return u.Update(func(s *ProductUpsert) {
+		s.AddShippingFee(v)
+	})
+}
+
+// UpdateShippingFee sets the "shipping_fee" field to the value that was provided on create.
+func (u *ProductUpsertBulk) UpdateShippingFee() *ProductUpsertBulk {
+	return u.Update(func(s *ProductUpsert) {
+		s.UpdateShippingFee()
+	})
+}
+
+// SetShippingCountries sets the "shipping_countries" field.
+func (u *ProductUpsertBulk) SetShippingCountries(v []string) *ProductUpsertBulk {
+	return u.Update(func(s *ProductUpsert) {
+		s.SetShippingCountries(v)
+	})
+}
+
+// UpdateShippingCountries sets the "shipping_countries" field to the value that was provided on create.
+func (u *ProductUpsertBulk) UpdateShippingCountries() *ProductUpsertBulk {
+	return u.Update(func(s *ProductUpsert) {
+		s.UpdateShippingCountries()
+	})
+}
+
+// ClearShippingCountries clears the value of the "shipping_countries" field.
+func (u *ProductUpsertBulk) ClearShippingCountries() *ProductUpsertBulk {
+	return u.Update(func(s *ProductUpsert) {
+		s.ClearShippingCountries()
+	})
+}
+
+// SetPhysicalStock sets the "physical_stock" field.
+func (u *ProductUpsertBulk) SetPhysicalStock(v int64) *ProductUpsertBulk {
+	return u.Update(func(s *ProductUpsert) {
+		s.SetPhysicalStock(v)
+	})
+}
+
+// AddPhysicalStock adds v to the "physical_stock" field.
+func (u *ProductUpsertBulk) AddPhysicalStock(v int64) *ProductUpsertBulk {
+	return u.Update(func(s *ProductUpsert) {
+		s.AddPhysicalStock(v)
+	})
+}
+
+// UpdatePhysicalStock sets the "physical_stock" field to the value that was provided on create.
+func (u *ProductUpsertBulk) UpdatePhysicalStock() *ProductUpsertBulk {
+	return u.Update(func(s *ProductUpsert) {
+		s.UpdatePhysicalStock()
 	})
 }
 

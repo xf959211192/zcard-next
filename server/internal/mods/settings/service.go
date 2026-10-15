@@ -92,6 +92,26 @@ func (s *AdminSettingsService) validateSettingValue(ctx context.Context, group, 
 			return errors.BadRequest("settings.INVALID_VALUE", "库存提醒阈值须为 1–1000000 的整数")
 		}
 	}
+	if group == "notify" {
+		switch key {
+		case "smtp_security", "smtp_auth":
+			var v string
+			g, _ := Group("notify")
+			if json.Unmarshal(value, &v) != nil || g.Options[key][v] == "" {
+				return errors.BadRequest("settings.INVALID_VALUE", "请选择有效的 SMTP 连接或认证方式")
+			}
+		case "smtp_tls_verify":
+			var v *bool
+			if json.Unmarshal(value, &v) != nil || v == nil {
+				return errors.BadRequest("settings.INVALID_VALUE", "SMTP 证书校验须为布尔值")
+			}
+		case "smtp_port":
+			var v *int
+			if json.Unmarshal(value, &v) != nil || v == nil || *v < 1 || *v > 65535 {
+				return errors.BadRequest("settings.INVALID_VALUE", "SMTP 端口须为 1–65535 的整数")
+			}
+		}
+	}
 	if group == "notify" && strings.HasPrefix(key, "telegram_") {
 		invalid := func() error {
 			return errors.BadRequest("settings.INVALID_VALUE", "Telegram 配置格式错误，请检查 Token、Chat ID 或事件选项")
@@ -161,18 +181,9 @@ func (s *AdminSettingsService) validateSettingValue(ctx context.Context, group, 
 	if group == "template" && key == activeThemeKey {
 		return errors.BadRequest("settings.INVALID_KEY", "请通过主题选择器切换默认主题")
 	}
-	// 基础货币必须指向货币表中已存在的货币（防孤儿配置——前台按 code 取符号）。
-	if group == "i18n" && key == "base_currency" {
-		var code string
-		if err := json.Unmarshal(value, &code); err != nil || code == "" {
-			return errors.BadRequest("settings.INVALID_VALUE", "base_currency 必须是非空货币代码字符串")
-		}
-		ok, err := s.uc.CurrencyExists(ctx, code)
-		if err != nil {
-			return errors.InternalServer("settings.CURRENCY_CHECK_FAILED", "校验货币失败")
-		}
-		if !ok {
-			return errors.BadRequest("settings.CURRENCY_NOT_FOUND", "货币不存在，请先在「货币」页创建")
+	if group == "i18n" {
+		if err := validateI18nValue(key, value); err != nil {
+			return err
 		}
 	}
 	// 模板键必须存在于可用模板清单（防写不存在的模板 key）。
@@ -221,7 +232,7 @@ func (s *AdminSettingsService) UpdateSetting(ctx context.Context, req *adminv1.U
 		return nil, err
 	}
 	if err := s.uc.PutMany(ctx, items); err != nil {
-		return nil, errors.BadRequest("settings.INVALID_VALUE", "设置值必须是合法 JSON")
+		return nil, settingWriteError(err, "设置值必须是合法 JSON")
 	}
 	if IsSecret(req.GetGroup(), req.GetKey()) {
 		value = json.RawMessage(`"****"`)
@@ -246,7 +257,7 @@ func (s *AdminSettingsService) UpdateSettings(ctx context.Context, req *adminv1.
 		return nil, err
 	}
 	if err := s.uc.PutMany(ctx, items); err != nil {
-		return nil, errors.BadRequest("settings.INVALID_VALUE", "设置值必须是合法 JSON 或键不在目录内")
+		return nil, settingWriteError(err, "设置值必须是合法 JSON 或键不在目录内")
 	}
 	reply := &adminv1.UpdateSettingsReply{Updated: int32(len(items))}
 	for _, it := range items {
@@ -267,4 +278,12 @@ func (s *AdminSettingsService) UpdateSettings(ctx context.Context, req *adminv1.
 		}
 	}
 	return reply, nil
+}
+
+// Preserve actionable validation failures from transactional configuration writes.
+func settingWriteError(err error, fallback string) error {
+	if e := errors.FromError(err); e.Code == 400 || e.Code == 409 {
+		return err
+	}
+	return errors.BadRequest("settings.INVALID_VALUE", fallback)
 }

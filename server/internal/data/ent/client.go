@@ -59,6 +59,8 @@ import (
 	"github.com/NovaWorks/zcard-next/server/internal/data/ent/pageview"
 	"github.com/NovaWorks/zcard-next/server/internal/data/ent/payment"
 	"github.com/NovaWorks/zcard-next/server/internal/data/ent/paymentchannel"
+	"github.com/NovaWorks/zcard-next/server/internal/data/ent/physicalreturnreceipt"
+	"github.com/NovaWorks/zcard-next/server/internal/data/ent/physicalstockmovement"
 	"github.com/NovaWorks/zcard-next/server/internal/data/ent/pointaccount"
 	"github.com/NovaWorks/zcard-next/server/internal/data/ent/pointtransaction"
 	"github.com/NovaWorks/zcard-next/server/internal/data/ent/post"
@@ -88,6 +90,10 @@ import (
 	"github.com/NovaWorks/zcard-next/server/internal/data/ent/securityauditlog"
 	"github.com/NovaWorks/zcard-next/server/internal/data/ent/session"
 	"github.com/NovaWorks/zcard-next/server/internal/data/ent/setting"
+	"github.com/NovaWorks/zcard-next/server/internal/data/ent/shipment"
+	"github.com/NovaWorks/zcard-next/server/internal/data/ent/smsintent"
+	"github.com/NovaWorks/zcard-next/server/internal/data/ent/smsoperation"
+	"github.com/NovaWorks/zcard-next/server/internal/data/ent/smsretailquote"
 	"github.com/NovaWorks/zcard-next/server/internal/data/ent/stockalert"
 	"github.com/NovaWorks/zcard-next/server/internal/data/ent/supplieraccount"
 	"github.com/NovaWorks/zcard-next/server/internal/data/ent/supplierledgerentry"
@@ -206,6 +212,10 @@ type Client struct {
 	Payment *PaymentClient
 	// PaymentChannel is the client for interacting with the PaymentChannel builders.
 	PaymentChannel *PaymentChannelClient
+	// PhysicalReturnReceipt is the client for interacting with the PhysicalReturnReceipt builders.
+	PhysicalReturnReceipt *PhysicalReturnReceiptClient
+	// PhysicalStockMovement is the client for interacting with the PhysicalStockMovement builders.
+	PhysicalStockMovement *PhysicalStockMovementClient
 	// PointAccount is the client for interacting with the PointAccount builders.
 	PointAccount *PointAccountClient
 	// PointTransaction is the client for interacting with the PointTransaction builders.
@@ -258,12 +268,20 @@ type Client struct {
 	RiskLockKey *RiskLockKeyClient
 	// RolePermission is the client for interacting with the RolePermission builders.
 	RolePermission *RolePermissionClient
+	// SMSIntent is the client for interacting with the SMSIntent builders.
+	SMSIntent *SMSIntentClient
+	// SMSOperation is the client for interacting with the SMSOperation builders.
+	SMSOperation *SMSOperationClient
+	// SMSRetailQuote is the client for interacting with the SMSRetailQuote builders.
+	SMSRetailQuote *SMSRetailQuoteClient
 	// SecurityAuditLog is the client for interacting with the SecurityAuditLog builders.
 	SecurityAuditLog *SecurityAuditLogClient
 	// Session is the client for interacting with the Session builders.
 	Session *SessionClient
 	// Setting is the client for interacting with the Setting builders.
 	Setting *SettingClient
+	// Shipment is the client for interacting with the Shipment builders.
+	Shipment *ShipmentClient
 	// StockAlert is the client for interacting with the StockAlert builders.
 	StockAlert *StockAlertClient
 	// SupplierAccount is the client for interacting with the SupplierAccount builders.
@@ -365,6 +383,8 @@ func (c *Client) init() {
 	c.PageView = NewPageViewClient(c.config)
 	c.Payment = NewPaymentClient(c.config)
 	c.PaymentChannel = NewPaymentChannelClient(c.config)
+	c.PhysicalReturnReceipt = NewPhysicalReturnReceiptClient(c.config)
+	c.PhysicalStockMovement = NewPhysicalStockMovementClient(c.config)
 	c.PointAccount = NewPointAccountClient(c.config)
 	c.PointTransaction = NewPointTransactionClient(c.config)
 	c.Post = NewPostClient(c.config)
@@ -391,9 +411,13 @@ func (c *Client) init() {
 	c.Review = NewReviewClient(c.config)
 	c.RiskLockKey = NewRiskLockKeyClient(c.config)
 	c.RolePermission = NewRolePermissionClient(c.config)
+	c.SMSIntent = NewSMSIntentClient(c.config)
+	c.SMSOperation = NewSMSOperationClient(c.config)
+	c.SMSRetailQuote = NewSMSRetailQuoteClient(c.config)
 	c.SecurityAuditLog = NewSecurityAuditLogClient(c.config)
 	c.Session = NewSessionClient(c.config)
 	c.Setting = NewSettingClient(c.config)
+	c.Shipment = NewShipmentClient(c.config)
 	c.StockAlert = NewStockAlertClient(c.config)
 	c.SupplierAccount = NewSupplierAccountClient(c.config)
 	c.SupplierLedgerEntry = NewSupplierLedgerEntryClient(c.config)
@@ -553,6 +577,8 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		PageView:                 NewPageViewClient(cfg),
 		Payment:                  NewPaymentClient(cfg),
 		PaymentChannel:           NewPaymentChannelClient(cfg),
+		PhysicalReturnReceipt:    NewPhysicalReturnReceiptClient(cfg),
+		PhysicalStockMovement:    NewPhysicalStockMovementClient(cfg),
 		PointAccount:             NewPointAccountClient(cfg),
 		PointTransaction:         NewPointTransactionClient(cfg),
 		Post:                     NewPostClient(cfg),
@@ -579,9 +605,13 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 		Review:                   NewReviewClient(cfg),
 		RiskLockKey:              NewRiskLockKeyClient(cfg),
 		RolePermission:           NewRolePermissionClient(cfg),
+		SMSIntent:                NewSMSIntentClient(cfg),
+		SMSOperation:             NewSMSOperationClient(cfg),
+		SMSRetailQuote:           NewSMSRetailQuoteClient(cfg),
 		SecurityAuditLog:         NewSecurityAuditLogClient(cfg),
 		Session:                  NewSessionClient(cfg),
 		Setting:                  NewSettingClient(cfg),
+		Shipment:                 NewShipmentClient(cfg),
 		StockAlert:               NewStockAlertClient(cfg),
 		SupplierAccount:          NewSupplierAccountClient(cfg),
 		SupplierLedgerEntry:      NewSupplierLedgerEntryClient(cfg),
@@ -668,6 +698,8 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		PageView:                 NewPageViewClient(cfg),
 		Payment:                  NewPaymentClient(cfg),
 		PaymentChannel:           NewPaymentChannelClient(cfg),
+		PhysicalReturnReceipt:    NewPhysicalReturnReceiptClient(cfg),
+		PhysicalStockMovement:    NewPhysicalStockMovementClient(cfg),
 		PointAccount:             NewPointAccountClient(cfg),
 		PointTransaction:         NewPointTransactionClient(cfg),
 		Post:                     NewPostClient(cfg),
@@ -694,9 +726,13 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 		Review:                   NewReviewClient(cfg),
 		RiskLockKey:              NewRiskLockKeyClient(cfg),
 		RolePermission:           NewRolePermissionClient(cfg),
+		SMSIntent:                NewSMSIntentClient(cfg),
+		SMSOperation:             NewSMSOperationClient(cfg),
+		SMSRetailQuote:           NewSMSRetailQuoteClient(cfg),
 		SecurityAuditLog:         NewSecurityAuditLogClient(cfg),
 		Session:                  NewSessionClient(cfg),
 		Setting:                  NewSettingClient(cfg),
+		Shipment:                 NewShipmentClient(cfg),
 		StockAlert:               NewStockAlertClient(cfg),
 		SupplierAccount:          NewSupplierAccountClient(cfg),
 		SupplierLedgerEntry:      NewSupplierLedgerEntryClient(cfg),
@@ -758,14 +794,15 @@ func (c *Client) Use(hooks ...Hook) {
 		c.MemberLevel, c.MemberProductGroup, c.Notification, c.NotificationLog,
 		c.NotifyBroadcast, c.NotifyTemplate, c.Order, c.OrderAmountLine,
 		c.OrderDelivery, c.OrderItem, c.OrderStatusEvent, c.OutboxEvent, c.PageView,
-		c.Payment, c.PaymentChannel, c.PointAccount, c.PointTransaction, c.Post,
-		c.PostCategory, c.ProcessedEvent, c.ProcurementItem, c.ProcurementOrder,
-		c.Product, c.ProductContentBatch, c.ProductControl, c.ProductDeliverySource,
-		c.ProductSku, c.Promotion, c.RechargeOrder, c.ReconciliationItem,
-		c.ReconciliationJob, c.RefundOrder, c.ResellerBalanceAccount,
-		c.ResellerLedgerEntry, c.ResellerPricing, c.ResellerProfile,
-		c.ResellerRelatedAccount, c.ResellerSite, c.Review, c.RiskLockKey,
-		c.RolePermission, c.SecurityAuditLog, c.Session, c.Setting, c.StockAlert,
+		c.Payment, c.PaymentChannel, c.PhysicalReturnReceipt, c.PhysicalStockMovement,
+		c.PointAccount, c.PointTransaction, c.Post, c.PostCategory, c.ProcessedEvent,
+		c.ProcurementItem, c.ProcurementOrder, c.Product, c.ProductContentBatch,
+		c.ProductControl, c.ProductDeliverySource, c.ProductSku, c.Promotion,
+		c.RechargeOrder, c.ReconciliationItem, c.ReconciliationJob, c.RefundOrder,
+		c.ResellerBalanceAccount, c.ResellerLedgerEntry, c.ResellerPricing,
+		c.ResellerProfile, c.ResellerRelatedAccount, c.ResellerSite, c.Review,
+		c.RiskLockKey, c.RolePermission, c.SMSIntent, c.SMSOperation, c.SMSRetailQuote,
+		c.SecurityAuditLog, c.Session, c.Setting, c.Shipment, c.StockAlert,
 		c.SupplierAccount, c.SupplierLedgerEntry, c.SupplierProductPrice,
 		c.SupplyCatalogSnapshot, c.SupplyConnection, c.SupplyImportItem,
 		c.SupplyMapping, c.SupplyNonce, c.SupplyOrder, c.SupplySyncTask, c.Tag,
@@ -790,14 +827,15 @@ func (c *Client) Intercept(interceptors ...Interceptor) {
 		c.MemberLevel, c.MemberProductGroup, c.Notification, c.NotificationLog,
 		c.NotifyBroadcast, c.NotifyTemplate, c.Order, c.OrderAmountLine,
 		c.OrderDelivery, c.OrderItem, c.OrderStatusEvent, c.OutboxEvent, c.PageView,
-		c.Payment, c.PaymentChannel, c.PointAccount, c.PointTransaction, c.Post,
-		c.PostCategory, c.ProcessedEvent, c.ProcurementItem, c.ProcurementOrder,
-		c.Product, c.ProductContentBatch, c.ProductControl, c.ProductDeliverySource,
-		c.ProductSku, c.Promotion, c.RechargeOrder, c.ReconciliationItem,
-		c.ReconciliationJob, c.RefundOrder, c.ResellerBalanceAccount,
-		c.ResellerLedgerEntry, c.ResellerPricing, c.ResellerProfile,
-		c.ResellerRelatedAccount, c.ResellerSite, c.Review, c.RiskLockKey,
-		c.RolePermission, c.SecurityAuditLog, c.Session, c.Setting, c.StockAlert,
+		c.Payment, c.PaymentChannel, c.PhysicalReturnReceipt, c.PhysicalStockMovement,
+		c.PointAccount, c.PointTransaction, c.Post, c.PostCategory, c.ProcessedEvent,
+		c.ProcurementItem, c.ProcurementOrder, c.Product, c.ProductContentBatch,
+		c.ProductControl, c.ProductDeliverySource, c.ProductSku, c.Promotion,
+		c.RechargeOrder, c.ReconciliationItem, c.ReconciliationJob, c.RefundOrder,
+		c.ResellerBalanceAccount, c.ResellerLedgerEntry, c.ResellerPricing,
+		c.ResellerProfile, c.ResellerRelatedAccount, c.ResellerSite, c.Review,
+		c.RiskLockKey, c.RolePermission, c.SMSIntent, c.SMSOperation, c.SMSRetailQuote,
+		c.SecurityAuditLog, c.Session, c.Setting, c.Shipment, c.StockAlert,
 		c.SupplierAccount, c.SupplierLedgerEntry, c.SupplierProductPrice,
 		c.SupplyCatalogSnapshot, c.SupplyConnection, c.SupplyImportItem,
 		c.SupplyMapping, c.SupplyNonce, c.SupplyOrder, c.SupplySyncTask, c.Tag,
@@ -900,6 +938,10 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.Payment.mutate(ctx, m)
 	case *PaymentChannelMutation:
 		return c.PaymentChannel.mutate(ctx, m)
+	case *PhysicalReturnReceiptMutation:
+		return c.PhysicalReturnReceipt.mutate(ctx, m)
+	case *PhysicalStockMovementMutation:
+		return c.PhysicalStockMovement.mutate(ctx, m)
 	case *PointAccountMutation:
 		return c.PointAccount.mutate(ctx, m)
 	case *PointTransactionMutation:
@@ -952,12 +994,20 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 		return c.RiskLockKey.mutate(ctx, m)
 	case *RolePermissionMutation:
 		return c.RolePermission.mutate(ctx, m)
+	case *SMSIntentMutation:
+		return c.SMSIntent.mutate(ctx, m)
+	case *SMSOperationMutation:
+		return c.SMSOperation.mutate(ctx, m)
+	case *SMSRetailQuoteMutation:
+		return c.SMSRetailQuote.mutate(ctx, m)
 	case *SecurityAuditLogMutation:
 		return c.SecurityAuditLog.mutate(ctx, m)
 	case *SessionMutation:
 		return c.Session.mutate(ctx, m)
 	case *SettingMutation:
 		return c.Setting.mutate(ctx, m)
+	case *ShipmentMutation:
+		return c.Shipment.mutate(ctx, m)
 	case *StockAlertMutation:
 		return c.StockAlert.mutate(ctx, m)
 	case *SupplierAccountMutation:
@@ -7053,6 +7103,272 @@ func (c *PaymentChannelClient) mutate(ctx context.Context, m *PaymentChannelMuta
 	}
 }
 
+// PhysicalReturnReceiptClient is a client for the PhysicalReturnReceipt schema.
+type PhysicalReturnReceiptClient struct {
+	config
+}
+
+// NewPhysicalReturnReceiptClient returns a client for the PhysicalReturnReceipt from the given config.
+func NewPhysicalReturnReceiptClient(c config) *PhysicalReturnReceiptClient {
+	return &PhysicalReturnReceiptClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `physicalreturnreceipt.Hooks(f(g(h())))`.
+func (c *PhysicalReturnReceiptClient) Use(hooks ...Hook) {
+	c.hooks.PhysicalReturnReceipt = append(c.hooks.PhysicalReturnReceipt, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `physicalreturnreceipt.Intercept(f(g(h())))`.
+func (c *PhysicalReturnReceiptClient) Intercept(interceptors ...Interceptor) {
+	c.inters.PhysicalReturnReceipt = append(c.inters.PhysicalReturnReceipt, interceptors...)
+}
+
+// Create returns a builder for creating a PhysicalReturnReceipt entity.
+func (c *PhysicalReturnReceiptClient) Create() *PhysicalReturnReceiptCreate {
+	mutation := newPhysicalReturnReceiptMutation(c.config, OpCreate)
+	return &PhysicalReturnReceiptCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of PhysicalReturnReceipt entities.
+func (c *PhysicalReturnReceiptClient) CreateBulk(builders ...*PhysicalReturnReceiptCreate) *PhysicalReturnReceiptCreateBulk {
+	return &PhysicalReturnReceiptCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *PhysicalReturnReceiptClient) MapCreateBulk(slice any, setFunc func(*PhysicalReturnReceiptCreate, int)) *PhysicalReturnReceiptCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &PhysicalReturnReceiptCreateBulk{err: fmt.Errorf("calling to PhysicalReturnReceiptClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*PhysicalReturnReceiptCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &PhysicalReturnReceiptCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for PhysicalReturnReceipt.
+func (c *PhysicalReturnReceiptClient) Update() *PhysicalReturnReceiptUpdate {
+	mutation := newPhysicalReturnReceiptMutation(c.config, OpUpdate)
+	return &PhysicalReturnReceiptUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *PhysicalReturnReceiptClient) UpdateOne(_m *PhysicalReturnReceipt) *PhysicalReturnReceiptUpdateOne {
+	mutation := newPhysicalReturnReceiptMutation(c.config, OpUpdateOne, withPhysicalReturnReceipt(_m))
+	return &PhysicalReturnReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *PhysicalReturnReceiptClient) UpdateOneID(id uint64) *PhysicalReturnReceiptUpdateOne {
+	mutation := newPhysicalReturnReceiptMutation(c.config, OpUpdateOne, withPhysicalReturnReceiptID(id))
+	return &PhysicalReturnReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for PhysicalReturnReceipt.
+func (c *PhysicalReturnReceiptClient) Delete() *PhysicalReturnReceiptDelete {
+	mutation := newPhysicalReturnReceiptMutation(c.config, OpDelete)
+	return &PhysicalReturnReceiptDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *PhysicalReturnReceiptClient) DeleteOne(_m *PhysicalReturnReceipt) *PhysicalReturnReceiptDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *PhysicalReturnReceiptClient) DeleteOneID(id uint64) *PhysicalReturnReceiptDeleteOne {
+	builder := c.Delete().Where(physicalreturnreceipt.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &PhysicalReturnReceiptDeleteOne{builder}
+}
+
+// Query returns a query builder for PhysicalReturnReceipt.
+func (c *PhysicalReturnReceiptClient) Query() *PhysicalReturnReceiptQuery {
+	return &PhysicalReturnReceiptQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypePhysicalReturnReceipt},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a PhysicalReturnReceipt entity by its id.
+func (c *PhysicalReturnReceiptClient) Get(ctx context.Context, id uint64) (*PhysicalReturnReceipt, error) {
+	return c.Query().Where(physicalreturnreceipt.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *PhysicalReturnReceiptClient) GetX(ctx context.Context, id uint64) *PhysicalReturnReceipt {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *PhysicalReturnReceiptClient) Hooks() []Hook {
+	return c.hooks.PhysicalReturnReceipt
+}
+
+// Interceptors returns the client interceptors.
+func (c *PhysicalReturnReceiptClient) Interceptors() []Interceptor {
+	return c.inters.PhysicalReturnReceipt
+}
+
+func (c *PhysicalReturnReceiptClient) mutate(ctx context.Context, m *PhysicalReturnReceiptMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&PhysicalReturnReceiptCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&PhysicalReturnReceiptUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&PhysicalReturnReceiptUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&PhysicalReturnReceiptDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown PhysicalReturnReceipt mutation op: %q", m.Op())
+	}
+}
+
+// PhysicalStockMovementClient is a client for the PhysicalStockMovement schema.
+type PhysicalStockMovementClient struct {
+	config
+}
+
+// NewPhysicalStockMovementClient returns a client for the PhysicalStockMovement from the given config.
+func NewPhysicalStockMovementClient(c config) *PhysicalStockMovementClient {
+	return &PhysicalStockMovementClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `physicalstockmovement.Hooks(f(g(h())))`.
+func (c *PhysicalStockMovementClient) Use(hooks ...Hook) {
+	c.hooks.PhysicalStockMovement = append(c.hooks.PhysicalStockMovement, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `physicalstockmovement.Intercept(f(g(h())))`.
+func (c *PhysicalStockMovementClient) Intercept(interceptors ...Interceptor) {
+	c.inters.PhysicalStockMovement = append(c.inters.PhysicalStockMovement, interceptors...)
+}
+
+// Create returns a builder for creating a PhysicalStockMovement entity.
+func (c *PhysicalStockMovementClient) Create() *PhysicalStockMovementCreate {
+	mutation := newPhysicalStockMovementMutation(c.config, OpCreate)
+	return &PhysicalStockMovementCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of PhysicalStockMovement entities.
+func (c *PhysicalStockMovementClient) CreateBulk(builders ...*PhysicalStockMovementCreate) *PhysicalStockMovementCreateBulk {
+	return &PhysicalStockMovementCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *PhysicalStockMovementClient) MapCreateBulk(slice any, setFunc func(*PhysicalStockMovementCreate, int)) *PhysicalStockMovementCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &PhysicalStockMovementCreateBulk{err: fmt.Errorf("calling to PhysicalStockMovementClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*PhysicalStockMovementCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &PhysicalStockMovementCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for PhysicalStockMovement.
+func (c *PhysicalStockMovementClient) Update() *PhysicalStockMovementUpdate {
+	mutation := newPhysicalStockMovementMutation(c.config, OpUpdate)
+	return &PhysicalStockMovementUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *PhysicalStockMovementClient) UpdateOne(_m *PhysicalStockMovement) *PhysicalStockMovementUpdateOne {
+	mutation := newPhysicalStockMovementMutation(c.config, OpUpdateOne, withPhysicalStockMovement(_m))
+	return &PhysicalStockMovementUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *PhysicalStockMovementClient) UpdateOneID(id uint64) *PhysicalStockMovementUpdateOne {
+	mutation := newPhysicalStockMovementMutation(c.config, OpUpdateOne, withPhysicalStockMovementID(id))
+	return &PhysicalStockMovementUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for PhysicalStockMovement.
+func (c *PhysicalStockMovementClient) Delete() *PhysicalStockMovementDelete {
+	mutation := newPhysicalStockMovementMutation(c.config, OpDelete)
+	return &PhysicalStockMovementDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *PhysicalStockMovementClient) DeleteOne(_m *PhysicalStockMovement) *PhysicalStockMovementDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *PhysicalStockMovementClient) DeleteOneID(id uint64) *PhysicalStockMovementDeleteOne {
+	builder := c.Delete().Where(physicalstockmovement.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &PhysicalStockMovementDeleteOne{builder}
+}
+
+// Query returns a query builder for PhysicalStockMovement.
+func (c *PhysicalStockMovementClient) Query() *PhysicalStockMovementQuery {
+	return &PhysicalStockMovementQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypePhysicalStockMovement},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a PhysicalStockMovement entity by its id.
+func (c *PhysicalStockMovementClient) Get(ctx context.Context, id uint64) (*PhysicalStockMovement, error) {
+	return c.Query().Where(physicalstockmovement.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *PhysicalStockMovementClient) GetX(ctx context.Context, id uint64) *PhysicalStockMovement {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *PhysicalStockMovementClient) Hooks() []Hook {
+	return c.hooks.PhysicalStockMovement
+}
+
+// Interceptors returns the client interceptors.
+func (c *PhysicalStockMovementClient) Interceptors() []Interceptor {
+	return c.inters.PhysicalStockMovement
+}
+
+func (c *PhysicalStockMovementClient) mutate(ctx context.Context, m *PhysicalStockMovementMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&PhysicalStockMovementCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&PhysicalStockMovementUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&PhysicalStockMovementUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&PhysicalStockMovementDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown PhysicalStockMovement mutation op: %q", m.Op())
+	}
+}
+
 // PointAccountClient is a client for the PointAccount schema.
 type PointAccountClient struct {
 	config
@@ -8126,7 +8442,8 @@ func (c *ProductClient) QueryCards(_m *Product) *CardQuery {
 
 // Hooks returns the client hooks.
 func (c *ProductClient) Hooks() []Hook {
-	return c.hooks.Product
+	hooks := c.hooks.Product
+	return append(hooks[:len(hooks):len(hooks)], product.Hooks[:]...)
 }
 
 // Interceptors returns the client interceptors.
@@ -10575,6 +10892,405 @@ func (c *RolePermissionClient) mutate(ctx context.Context, m *RolePermissionMuta
 	}
 }
 
+// SMSIntentClient is a client for the SMSIntent schema.
+type SMSIntentClient struct {
+	config
+}
+
+// NewSMSIntentClient returns a client for the SMSIntent from the given config.
+func NewSMSIntentClient(c config) *SMSIntentClient {
+	return &SMSIntentClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `smsintent.Hooks(f(g(h())))`.
+func (c *SMSIntentClient) Use(hooks ...Hook) {
+	c.hooks.SMSIntent = append(c.hooks.SMSIntent, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `smsintent.Intercept(f(g(h())))`.
+func (c *SMSIntentClient) Intercept(interceptors ...Interceptor) {
+	c.inters.SMSIntent = append(c.inters.SMSIntent, interceptors...)
+}
+
+// Create returns a builder for creating a SMSIntent entity.
+func (c *SMSIntentClient) Create() *SMSIntentCreate {
+	mutation := newSMSIntentMutation(c.config, OpCreate)
+	return &SMSIntentCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of SMSIntent entities.
+func (c *SMSIntentClient) CreateBulk(builders ...*SMSIntentCreate) *SMSIntentCreateBulk {
+	return &SMSIntentCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *SMSIntentClient) MapCreateBulk(slice any, setFunc func(*SMSIntentCreate, int)) *SMSIntentCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &SMSIntentCreateBulk{err: fmt.Errorf("calling to SMSIntentClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*SMSIntentCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &SMSIntentCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for SMSIntent.
+func (c *SMSIntentClient) Update() *SMSIntentUpdate {
+	mutation := newSMSIntentMutation(c.config, OpUpdate)
+	return &SMSIntentUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *SMSIntentClient) UpdateOne(_m *SMSIntent) *SMSIntentUpdateOne {
+	mutation := newSMSIntentMutation(c.config, OpUpdateOne, withSMSIntent(_m))
+	return &SMSIntentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *SMSIntentClient) UpdateOneID(id uint64) *SMSIntentUpdateOne {
+	mutation := newSMSIntentMutation(c.config, OpUpdateOne, withSMSIntentID(id))
+	return &SMSIntentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for SMSIntent.
+func (c *SMSIntentClient) Delete() *SMSIntentDelete {
+	mutation := newSMSIntentMutation(c.config, OpDelete)
+	return &SMSIntentDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *SMSIntentClient) DeleteOne(_m *SMSIntent) *SMSIntentDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *SMSIntentClient) DeleteOneID(id uint64) *SMSIntentDeleteOne {
+	builder := c.Delete().Where(smsintent.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &SMSIntentDeleteOne{builder}
+}
+
+// Query returns a query builder for SMSIntent.
+func (c *SMSIntentClient) Query() *SMSIntentQuery {
+	return &SMSIntentQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeSMSIntent},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a SMSIntent entity by its id.
+func (c *SMSIntentClient) Get(ctx context.Context, id uint64) (*SMSIntent, error) {
+	return c.Query().Where(smsintent.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *SMSIntentClient) GetX(ctx context.Context, id uint64) *SMSIntent {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *SMSIntentClient) Hooks() []Hook {
+	return c.hooks.SMSIntent
+}
+
+// Interceptors returns the client interceptors.
+func (c *SMSIntentClient) Interceptors() []Interceptor {
+	return c.inters.SMSIntent
+}
+
+func (c *SMSIntentClient) mutate(ctx context.Context, m *SMSIntentMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&SMSIntentCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&SMSIntentUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&SMSIntentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&SMSIntentDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown SMSIntent mutation op: %q", m.Op())
+	}
+}
+
+// SMSOperationClient is a client for the SMSOperation schema.
+type SMSOperationClient struct {
+	config
+}
+
+// NewSMSOperationClient returns a client for the SMSOperation from the given config.
+func NewSMSOperationClient(c config) *SMSOperationClient {
+	return &SMSOperationClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `smsoperation.Hooks(f(g(h())))`.
+func (c *SMSOperationClient) Use(hooks ...Hook) {
+	c.hooks.SMSOperation = append(c.hooks.SMSOperation, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `smsoperation.Intercept(f(g(h())))`.
+func (c *SMSOperationClient) Intercept(interceptors ...Interceptor) {
+	c.inters.SMSOperation = append(c.inters.SMSOperation, interceptors...)
+}
+
+// Create returns a builder for creating a SMSOperation entity.
+func (c *SMSOperationClient) Create() *SMSOperationCreate {
+	mutation := newSMSOperationMutation(c.config, OpCreate)
+	return &SMSOperationCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of SMSOperation entities.
+func (c *SMSOperationClient) CreateBulk(builders ...*SMSOperationCreate) *SMSOperationCreateBulk {
+	return &SMSOperationCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *SMSOperationClient) MapCreateBulk(slice any, setFunc func(*SMSOperationCreate, int)) *SMSOperationCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &SMSOperationCreateBulk{err: fmt.Errorf("calling to SMSOperationClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*SMSOperationCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &SMSOperationCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for SMSOperation.
+func (c *SMSOperationClient) Update() *SMSOperationUpdate {
+	mutation := newSMSOperationMutation(c.config, OpUpdate)
+	return &SMSOperationUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *SMSOperationClient) UpdateOne(_m *SMSOperation) *SMSOperationUpdateOne {
+	mutation := newSMSOperationMutation(c.config, OpUpdateOne, withSMSOperation(_m))
+	return &SMSOperationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *SMSOperationClient) UpdateOneID(id uint64) *SMSOperationUpdateOne {
+	mutation := newSMSOperationMutation(c.config, OpUpdateOne, withSMSOperationID(id))
+	return &SMSOperationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for SMSOperation.
+func (c *SMSOperationClient) Delete() *SMSOperationDelete {
+	mutation := newSMSOperationMutation(c.config, OpDelete)
+	return &SMSOperationDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *SMSOperationClient) DeleteOne(_m *SMSOperation) *SMSOperationDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *SMSOperationClient) DeleteOneID(id uint64) *SMSOperationDeleteOne {
+	builder := c.Delete().Where(smsoperation.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &SMSOperationDeleteOne{builder}
+}
+
+// Query returns a query builder for SMSOperation.
+func (c *SMSOperationClient) Query() *SMSOperationQuery {
+	return &SMSOperationQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeSMSOperation},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a SMSOperation entity by its id.
+func (c *SMSOperationClient) Get(ctx context.Context, id uint64) (*SMSOperation, error) {
+	return c.Query().Where(smsoperation.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *SMSOperationClient) GetX(ctx context.Context, id uint64) *SMSOperation {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *SMSOperationClient) Hooks() []Hook {
+	return c.hooks.SMSOperation
+}
+
+// Interceptors returns the client interceptors.
+func (c *SMSOperationClient) Interceptors() []Interceptor {
+	return c.inters.SMSOperation
+}
+
+func (c *SMSOperationClient) mutate(ctx context.Context, m *SMSOperationMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&SMSOperationCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&SMSOperationUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&SMSOperationUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&SMSOperationDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown SMSOperation mutation op: %q", m.Op())
+	}
+}
+
+// SMSRetailQuoteClient is a client for the SMSRetailQuote schema.
+type SMSRetailQuoteClient struct {
+	config
+}
+
+// NewSMSRetailQuoteClient returns a client for the SMSRetailQuote from the given config.
+func NewSMSRetailQuoteClient(c config) *SMSRetailQuoteClient {
+	return &SMSRetailQuoteClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `smsretailquote.Hooks(f(g(h())))`.
+func (c *SMSRetailQuoteClient) Use(hooks ...Hook) {
+	c.hooks.SMSRetailQuote = append(c.hooks.SMSRetailQuote, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `smsretailquote.Intercept(f(g(h())))`.
+func (c *SMSRetailQuoteClient) Intercept(interceptors ...Interceptor) {
+	c.inters.SMSRetailQuote = append(c.inters.SMSRetailQuote, interceptors...)
+}
+
+// Create returns a builder for creating a SMSRetailQuote entity.
+func (c *SMSRetailQuoteClient) Create() *SMSRetailQuoteCreate {
+	mutation := newSMSRetailQuoteMutation(c.config, OpCreate)
+	return &SMSRetailQuoteCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of SMSRetailQuote entities.
+func (c *SMSRetailQuoteClient) CreateBulk(builders ...*SMSRetailQuoteCreate) *SMSRetailQuoteCreateBulk {
+	return &SMSRetailQuoteCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *SMSRetailQuoteClient) MapCreateBulk(slice any, setFunc func(*SMSRetailQuoteCreate, int)) *SMSRetailQuoteCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &SMSRetailQuoteCreateBulk{err: fmt.Errorf("calling to SMSRetailQuoteClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*SMSRetailQuoteCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &SMSRetailQuoteCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for SMSRetailQuote.
+func (c *SMSRetailQuoteClient) Update() *SMSRetailQuoteUpdate {
+	mutation := newSMSRetailQuoteMutation(c.config, OpUpdate)
+	return &SMSRetailQuoteUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *SMSRetailQuoteClient) UpdateOne(_m *SMSRetailQuote) *SMSRetailQuoteUpdateOne {
+	mutation := newSMSRetailQuoteMutation(c.config, OpUpdateOne, withSMSRetailQuote(_m))
+	return &SMSRetailQuoteUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *SMSRetailQuoteClient) UpdateOneID(id string) *SMSRetailQuoteUpdateOne {
+	mutation := newSMSRetailQuoteMutation(c.config, OpUpdateOne, withSMSRetailQuoteID(id))
+	return &SMSRetailQuoteUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for SMSRetailQuote.
+func (c *SMSRetailQuoteClient) Delete() *SMSRetailQuoteDelete {
+	mutation := newSMSRetailQuoteMutation(c.config, OpDelete)
+	return &SMSRetailQuoteDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *SMSRetailQuoteClient) DeleteOne(_m *SMSRetailQuote) *SMSRetailQuoteDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *SMSRetailQuoteClient) DeleteOneID(id string) *SMSRetailQuoteDeleteOne {
+	builder := c.Delete().Where(smsretailquote.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &SMSRetailQuoteDeleteOne{builder}
+}
+
+// Query returns a query builder for SMSRetailQuote.
+func (c *SMSRetailQuoteClient) Query() *SMSRetailQuoteQuery {
+	return &SMSRetailQuoteQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeSMSRetailQuote},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a SMSRetailQuote entity by its id.
+func (c *SMSRetailQuoteClient) Get(ctx context.Context, id string) (*SMSRetailQuote, error) {
+	return c.Query().Where(smsretailquote.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *SMSRetailQuoteClient) GetX(ctx context.Context, id string) *SMSRetailQuote {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *SMSRetailQuoteClient) Hooks() []Hook {
+	return c.hooks.SMSRetailQuote
+}
+
+// Interceptors returns the client interceptors.
+func (c *SMSRetailQuoteClient) Interceptors() []Interceptor {
+	return c.inters.SMSRetailQuote
+}
+
+func (c *SMSRetailQuoteClient) mutate(ctx context.Context, m *SMSRetailQuoteMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&SMSRetailQuoteCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&SMSRetailQuoteUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&SMSRetailQuoteUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&SMSRetailQuoteDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown SMSRetailQuote mutation op: %q", m.Op())
+	}
+}
+
 // SecurityAuditLogClient is a client for the SecurityAuditLog schema.
 type SecurityAuditLogClient struct {
 	config
@@ -10971,6 +11687,139 @@ func (c *SettingClient) mutate(ctx context.Context, m *SettingMutation) (Value, 
 		return (&SettingDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
 		return nil, fmt.Errorf("ent: unknown Setting mutation op: %q", m.Op())
+	}
+}
+
+// ShipmentClient is a client for the Shipment schema.
+type ShipmentClient struct {
+	config
+}
+
+// NewShipmentClient returns a client for the Shipment from the given config.
+func NewShipmentClient(c config) *ShipmentClient {
+	return &ShipmentClient{config: c}
+}
+
+// Use adds a list of mutation hooks to the hooks stack.
+// A call to `Use(f, g, h)` equals to `shipment.Hooks(f(g(h())))`.
+func (c *ShipmentClient) Use(hooks ...Hook) {
+	c.hooks.Shipment = append(c.hooks.Shipment, hooks...)
+}
+
+// Intercept adds a list of query interceptors to the interceptors stack.
+// A call to `Intercept(f, g, h)` equals to `shipment.Intercept(f(g(h())))`.
+func (c *ShipmentClient) Intercept(interceptors ...Interceptor) {
+	c.inters.Shipment = append(c.inters.Shipment, interceptors...)
+}
+
+// Create returns a builder for creating a Shipment entity.
+func (c *ShipmentClient) Create() *ShipmentCreate {
+	mutation := newShipmentMutation(c.config, OpCreate)
+	return &ShipmentCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// CreateBulk returns a builder for creating a bulk of Shipment entities.
+func (c *ShipmentClient) CreateBulk(builders ...*ShipmentCreate) *ShipmentCreateBulk {
+	return &ShipmentCreateBulk{config: c.config, builders: builders}
+}
+
+// MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
+// a builder and applies setFunc on it.
+func (c *ShipmentClient) MapCreateBulk(slice any, setFunc func(*ShipmentCreate, int)) *ShipmentCreateBulk {
+	rv := reflect.ValueOf(slice)
+	if rv.Kind() != reflect.Slice {
+		return &ShipmentCreateBulk{err: fmt.Errorf("calling to ShipmentClient.MapCreateBulk with wrong type %T, need slice", slice)}
+	}
+	builders := make([]*ShipmentCreate, rv.Len())
+	for i := 0; i < rv.Len(); i++ {
+		builders[i] = c.Create()
+		setFunc(builders[i], i)
+	}
+	return &ShipmentCreateBulk{config: c.config, builders: builders}
+}
+
+// Update returns an update builder for Shipment.
+func (c *ShipmentClient) Update() *ShipmentUpdate {
+	mutation := newShipmentMutation(c.config, OpUpdate)
+	return &ShipmentUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOne returns an update builder for the given entity.
+func (c *ShipmentClient) UpdateOne(_m *Shipment) *ShipmentUpdateOne {
+	mutation := newShipmentMutation(c.config, OpUpdateOne, withShipment(_m))
+	return &ShipmentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// UpdateOneID returns an update builder for the given id.
+func (c *ShipmentClient) UpdateOneID(id uint64) *ShipmentUpdateOne {
+	mutation := newShipmentMutation(c.config, OpUpdateOne, withShipmentID(id))
+	return &ShipmentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// Delete returns a delete builder for Shipment.
+func (c *ShipmentClient) Delete() *ShipmentDelete {
+	mutation := newShipmentMutation(c.config, OpDelete)
+	return &ShipmentDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+}
+
+// DeleteOne returns a builder for deleting the given entity.
+func (c *ShipmentClient) DeleteOne(_m *Shipment) *ShipmentDeleteOne {
+	return c.DeleteOneID(_m.ID)
+}
+
+// DeleteOneID returns a builder for deleting the given entity by its id.
+func (c *ShipmentClient) DeleteOneID(id uint64) *ShipmentDeleteOne {
+	builder := c.Delete().Where(shipment.ID(id))
+	builder.mutation.id = &id
+	builder.mutation.op = OpDeleteOne
+	return &ShipmentDeleteOne{builder}
+}
+
+// Query returns a query builder for Shipment.
+func (c *ShipmentClient) Query() *ShipmentQuery {
+	return &ShipmentQuery{
+		config: c.config,
+		ctx:    &QueryContext{Type: TypeShipment},
+		inters: c.Interceptors(),
+	}
+}
+
+// Get returns a Shipment entity by its id.
+func (c *ShipmentClient) Get(ctx context.Context, id uint64) (*Shipment, error) {
+	return c.Query().Where(shipment.ID(id)).Only(ctx)
+}
+
+// GetX is like Get, but panics if an error occurs.
+func (c *ShipmentClient) GetX(ctx context.Context, id uint64) *Shipment {
+	obj, err := c.Get(ctx, id)
+	if err != nil {
+		panic(err)
+	}
+	return obj
+}
+
+// Hooks returns the client hooks.
+func (c *ShipmentClient) Hooks() []Hook {
+	return c.hooks.Shipment
+}
+
+// Interceptors returns the client interceptors.
+func (c *ShipmentClient) Interceptors() []Interceptor {
+	return c.inters.Shipment
+}
+
+func (c *ShipmentClient) mutate(ctx context.Context, m *ShipmentMutation) (Value, error) {
+	switch m.Op() {
+	case OpCreate:
+		return (&ShipmentCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdate:
+		return (&ShipmentUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpUpdateOne:
+		return (&ShipmentUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+	case OpDelete, OpDeleteOne:
+		return (&ShipmentDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+	default:
+		return nil, fmt.Errorf("ent: unknown Shipment mutation op: %q", m.Op())
 	}
 }
 
@@ -14044,13 +14893,14 @@ type (
 		MediaCategory, MemberLevel, MemberProductGroup, Notification, NotificationLog,
 		NotifyBroadcast, NotifyTemplate, Order, OrderAmountLine, OrderDelivery,
 		OrderItem, OrderStatusEvent, OutboxEvent, PageView, Payment, PaymentChannel,
-		PointAccount, PointTransaction, Post, PostCategory, ProcessedEvent,
-		ProcurementItem, ProcurementOrder, Product, ProductContentBatch,
-		ProductControl, ProductDeliverySource, ProductSku, Promotion, RechargeOrder,
-		ReconciliationItem, ReconciliationJob, RefundOrder, ResellerBalanceAccount,
-		ResellerLedgerEntry, ResellerPricing, ResellerProfile, ResellerRelatedAccount,
-		ResellerSite, Review, RiskLockKey, RolePermission, SecurityAuditLog, Session,
-		Setting, StockAlert, SupplierAccount, SupplierLedgerEntry,
+		PhysicalReturnReceipt, PhysicalStockMovement, PointAccount, PointTransaction,
+		Post, PostCategory, ProcessedEvent, ProcurementItem, ProcurementOrder, Product,
+		ProductContentBatch, ProductControl, ProductDeliverySource, ProductSku,
+		Promotion, RechargeOrder, ReconciliationItem, ReconciliationJob, RefundOrder,
+		ResellerBalanceAccount, ResellerLedgerEntry, ResellerPricing, ResellerProfile,
+		ResellerRelatedAccount, ResellerSite, Review, RiskLockKey, RolePermission,
+		SMSIntent, SMSOperation, SMSRetailQuote, SecurityAuditLog, Session, Setting,
+		Shipment, StockAlert, SupplierAccount, SupplierLedgerEntry,
 		SupplierProductPrice, SupplyCatalogSnapshot, SupplyConnection,
 		SupplyImportItem, SupplyMapping, SupplyNonce, SupplyOrder, SupplySyncTask, Tag,
 		Ticket, TicketMessage, User, UserGroup, UserSession, V1IDMap, VirtualReview,
@@ -14065,13 +14915,14 @@ type (
 		MediaCategory, MemberLevel, MemberProductGroup, Notification, NotificationLog,
 		NotifyBroadcast, NotifyTemplate, Order, OrderAmountLine, OrderDelivery,
 		OrderItem, OrderStatusEvent, OutboxEvent, PageView, Payment, PaymentChannel,
-		PointAccount, PointTransaction, Post, PostCategory, ProcessedEvent,
-		ProcurementItem, ProcurementOrder, Product, ProductContentBatch,
-		ProductControl, ProductDeliverySource, ProductSku, Promotion, RechargeOrder,
-		ReconciliationItem, ReconciliationJob, RefundOrder, ResellerBalanceAccount,
-		ResellerLedgerEntry, ResellerPricing, ResellerProfile, ResellerRelatedAccount,
-		ResellerSite, Review, RiskLockKey, RolePermission, SecurityAuditLog, Session,
-		Setting, StockAlert, SupplierAccount, SupplierLedgerEntry,
+		PhysicalReturnReceipt, PhysicalStockMovement, PointAccount, PointTransaction,
+		Post, PostCategory, ProcessedEvent, ProcurementItem, ProcurementOrder, Product,
+		ProductContentBatch, ProductControl, ProductDeliverySource, ProductSku,
+		Promotion, RechargeOrder, ReconciliationItem, ReconciliationJob, RefundOrder,
+		ResellerBalanceAccount, ResellerLedgerEntry, ResellerPricing, ResellerProfile,
+		ResellerRelatedAccount, ResellerSite, Review, RiskLockKey, RolePermission,
+		SMSIntent, SMSOperation, SMSRetailQuote, SecurityAuditLog, Session, Setting,
+		Shipment, StockAlert, SupplierAccount, SupplierLedgerEntry,
 		SupplierProductPrice, SupplyCatalogSnapshot, SupplyConnection,
 		SupplyImportItem, SupplyMapping, SupplyNonce, SupplyOrder, SupplySyncTask, Tag,
 		Ticket, TicketMessage, User, UserGroup, UserSession, V1IDMap, VirtualReview,

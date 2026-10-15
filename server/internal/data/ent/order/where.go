@@ -110,6 +110,36 @@ func QueryPasswordHash(v string) predicate.Order {
 	return predicate.Order(sql.FieldEQ(FieldQueryPasswordHash, v))
 }
 
+// OrderAccessTokenHash applies equality check predicate on the "order_access_token_hash" field. It's identical to OrderAccessTokenHashEQ.
+func OrderAccessTokenHash(v string) predicate.Order {
+	return predicate.Order(sql.FieldEQ(FieldOrderAccessTokenHash, v))
+}
+
+// OrderAccessTokenSecret applies equality check predicate on the "order_access_token_secret" field. It's identical to OrderAccessTokenSecretEQ.
+func OrderAccessTokenSecret(v []byte) predicate.Order {
+	return predicate.Order(sql.FieldEQ(FieldOrderAccessTokenSecret, v))
+}
+
+// CommerceVersion applies equality check predicate on the "commerce_version" field. It's identical to CommerceVersionEQ.
+func CommerceVersion(v int32) predicate.Order {
+	return predicate.Order(sql.FieldEQ(FieldCommerceVersion, v))
+}
+
+// ShippingAmount applies equality check predicate on the "shipping_amount" field. It's identical to ShippingAmountEQ.
+func ShippingAmount(v int64) predicate.Order {
+	return predicate.Order(sql.FieldEQ(FieldShippingAmount, v))
+}
+
+// ShippingStatus applies equality check predicate on the "shipping_status" field. It's identical to ShippingStatusEQ.
+func ShippingStatus(v string) predicate.Order {
+	return predicate.Order(sql.FieldEQ(FieldShippingStatus, v))
+}
+
+// RequestHash applies equality check predicate on the "request_hash" field. It's identical to RequestHashEQ.
+func RequestHash(v string) predicate.Order {
+	return predicate.Order(sql.FieldEQ(FieldRequestHash, v))
+}
+
 // TotalAmount applies equality check predicate on the "total_amount" field. It's identical to TotalAmountEQ.
 func TotalAmount(v int64) predicate.Order {
 	return predicate.Order(sql.FieldEQ(FieldTotalAmount, v))
@@ -780,6 +810,121 @@ func QueryPasswordHashContainsFold(v string) predicate.Order {
 	return predicate.Order(sql.FieldContainsFold(FieldQueryPasswordHash, v))
 }
 
+// OrderAccessTokenHashEQ applies the EQ predicate on the "order_access_token_hash" field.
+func OrderAccessTokenHashEQ(v string) predicate.Order {
+	return predicate.Order(sql.FieldEQ(FieldOrderAccessTokenHash, v))
+}
+
+// OrderAccessTokenHashNEQ applies the NEQ predicate on the "order_access_token_hash" field.
+func OrderAccessTokenHashNEQ(v string) predicate.Order {
+	return predicate.Order(sql.FieldNEQ(FieldOrderAccessTokenHash, v))
+}
+
+// OrderAccessTokenHashIn applies the In predicate on the "order_access_token_hash" field.
+func OrderAccessTokenHashIn(vs ...string) predicate.Order {
+	return predicate.Order(sql.FieldIn(FieldOrderAccessTokenHash, vs...))
+}
+
+// OrderAccessTokenHashNotIn applies the NotIn predicate on the "order_access_token_hash" field.
+func OrderAccessTokenHashNotIn(vs ...string) predicate.Order {
+	return predicate.Order(sql.FieldNotIn(FieldOrderAccessTokenHash, vs...))
+}
+
+// OrderAccessTokenHashGT applies the GT predicate on the "order_access_token_hash" field.
+func OrderAccessTokenHashGT(v string) predicate.Order {
+	return predicate.Order(sql.FieldGT(FieldOrderAccessTokenHash, v))
+}
+
+// OrderAccessTokenHashGTE applies the GTE predicate on the "order_access_token_hash" field.
+func OrderAccessTokenHashGTE(v string) predicate.Order {
+	return predicate.Order(sql.FieldGTE(FieldOrderAccessTokenHash, v))
+}
+
+// OrderAccessTokenHashLT applies the LT predicate on the "order_access_token_hash" field.
+func OrderAccessTokenHashLT(v string) predicate.Order {
+	return predicate.Order(sql.FieldLT(FieldOrderAccessTokenHash, v))
+}
+
+// OrderAccessTokenHashLTE applies the LTE predicate on the "order_access_token_hash" field.
+func OrderAccessTokenHashLTE(v string) predicate.Order {
+	return predicate.Order(sql.FieldLTE(FieldOrderAccessTokenHash, v))
+}
+
+// OrderAccessTokenHashContains applies the Contains predicate on the "order_access_token_hash" field.
+func OrderAccessTokenHashContains(v string) predicate.Order {
+	return predicate.Order(sql.FieldContains(FieldOrderAccessTokenHash, v))
+}
+
+// OrderAccessTokenHashHasPrefix applies the HasPrefix predicate on the "order_access_token_hash" field.
+func OrderAccessTokenHashHasPrefix(v string) predicate.Order {
+	return predicate.Order(sql.FieldHasPrefix(FieldOrderAccessTokenHash, v))
+}
+
+// OrderAccessTokenHashHasSuffix applies the HasSuffix predicate on the "order_access_token_hash" field.
+func OrderAccessTokenHashHasSuffix(v string) predicate.Order {
+	return predicate.Order(sql.FieldHasSuffix(FieldOrderAccessTokenHash, v))
+}
+
+// OrderAccessTokenHashEqualFold applies the EqualFold predicate on the "order_access_token_hash" field.
+func OrderAccessTokenHashEqualFold(v string) predicate.Order {
+	return predicate.Order(sql.FieldEqualFold(FieldOrderAccessTokenHash, v))
+}
+
+// OrderAccessTokenHashContainsFold applies the ContainsFold predicate on the "order_access_token_hash" field.
+func OrderAccessTokenHashContainsFold(v string) predicate.Order {
+	return predicate.Order(sql.FieldContainsFold(FieldOrderAccessTokenHash, v))
+}
+
+// OrderAccessTokenSecretEQ applies the EQ predicate on the "order_access_token_secret" field.
+func OrderAccessTokenSecretEQ(v []byte) predicate.Order {
+	return predicate.Order(sql.FieldEQ(FieldOrderAccessTokenSecret, v))
+}
+
+// OrderAccessTokenSecretNEQ applies the NEQ predicate on the "order_access_token_secret" field.
+func OrderAccessTokenSecretNEQ(v []byte) predicate.Order {
+	return predicate.Order(sql.FieldNEQ(FieldOrderAccessTokenSecret, v))
+}
+
+// OrderAccessTokenSecretIn applies the In predicate on the "order_access_token_secret" field.
+func OrderAccessTokenSecretIn(vs ...[]byte) predicate.Order {
+	return predicate.Order(sql.FieldIn(FieldOrderAccessTokenSecret, vs...))
+}
+
+// OrderAccessTokenSecretNotIn applies the NotIn predicate on the "order_access_token_secret" field.
+func OrderAccessTokenSecretNotIn(vs ...[]byte) predicate.Order {
+	return predicate.Order(sql.FieldNotIn(FieldOrderAccessTokenSecret, vs...))
+}
+
+// OrderAccessTokenSecretGT applies the GT predicate on the "order_access_token_secret" field.
+func OrderAccessTokenSecretGT(v []byte) predicate.Order {
+	return predicate.Order(sql.FieldGT(FieldOrderAccessTokenSecret, v))
+}
+
+// OrderAccessTokenSecretGTE applies the GTE predicate on the "order_access_token_secret" field.
+func OrderAccessTokenSecretGTE(v []byte) predicate.Order {
+	return predicate.Order(sql.FieldGTE(FieldOrderAccessTokenSecret, v))
+}
+
+// OrderAccessTokenSecretLT applies the LT predicate on the "order_access_token_secret" field.
+func OrderAccessTokenSecretLT(v []byte) predicate.Order {
+	return predicate.Order(sql.FieldLT(FieldOrderAccessTokenSecret, v))
+}
+
+// OrderAccessTokenSecretLTE applies the LTE predicate on the "order_access_token_secret" field.
+func OrderAccessTokenSecretLTE(v []byte) predicate.Order {
+	return predicate.Order(sql.FieldLTE(FieldOrderAccessTokenSecret, v))
+}
+
+// OrderAccessTokenSecretIsNil applies the IsNil predicate on the "order_access_token_secret" field.
+func OrderAccessTokenSecretIsNil() predicate.Order {
+	return predicate.Order(sql.FieldIsNull(FieldOrderAccessTokenSecret))
+}
+
+// OrderAccessTokenSecretNotNil applies the NotNil predicate on the "order_access_token_secret" field.
+func OrderAccessTokenSecretNotNil() predicate.Order {
+	return predicate.Order(sql.FieldNotNull(FieldOrderAccessTokenSecret))
+}
+
 // StatusEQ applies the EQ predicate on the "status" field.
 func StatusEQ(v Status) predicate.Order {
 	return predicate.Order(sql.FieldEQ(FieldStatus, v))
@@ -798,6 +943,226 @@ func StatusIn(vs ...Status) predicate.Order {
 // StatusNotIn applies the NotIn predicate on the "status" field.
 func StatusNotIn(vs ...Status) predicate.Order {
 	return predicate.Order(sql.FieldNotIn(FieldStatus, vs...))
+}
+
+// CommerceVersionEQ applies the EQ predicate on the "commerce_version" field.
+func CommerceVersionEQ(v int32) predicate.Order {
+	return predicate.Order(sql.FieldEQ(FieldCommerceVersion, v))
+}
+
+// CommerceVersionNEQ applies the NEQ predicate on the "commerce_version" field.
+func CommerceVersionNEQ(v int32) predicate.Order {
+	return predicate.Order(sql.FieldNEQ(FieldCommerceVersion, v))
+}
+
+// CommerceVersionIn applies the In predicate on the "commerce_version" field.
+func CommerceVersionIn(vs ...int32) predicate.Order {
+	return predicate.Order(sql.FieldIn(FieldCommerceVersion, vs...))
+}
+
+// CommerceVersionNotIn applies the NotIn predicate on the "commerce_version" field.
+func CommerceVersionNotIn(vs ...int32) predicate.Order {
+	return predicate.Order(sql.FieldNotIn(FieldCommerceVersion, vs...))
+}
+
+// CommerceVersionGT applies the GT predicate on the "commerce_version" field.
+func CommerceVersionGT(v int32) predicate.Order {
+	return predicate.Order(sql.FieldGT(FieldCommerceVersion, v))
+}
+
+// CommerceVersionGTE applies the GTE predicate on the "commerce_version" field.
+func CommerceVersionGTE(v int32) predicate.Order {
+	return predicate.Order(sql.FieldGTE(FieldCommerceVersion, v))
+}
+
+// CommerceVersionLT applies the LT predicate on the "commerce_version" field.
+func CommerceVersionLT(v int32) predicate.Order {
+	return predicate.Order(sql.FieldLT(FieldCommerceVersion, v))
+}
+
+// CommerceVersionLTE applies the LTE predicate on the "commerce_version" field.
+func CommerceVersionLTE(v int32) predicate.Order {
+	return predicate.Order(sql.FieldLTE(FieldCommerceVersion, v))
+}
+
+// ShippingAmountEQ applies the EQ predicate on the "shipping_amount" field.
+func ShippingAmountEQ(v int64) predicate.Order {
+	return predicate.Order(sql.FieldEQ(FieldShippingAmount, v))
+}
+
+// ShippingAmountNEQ applies the NEQ predicate on the "shipping_amount" field.
+func ShippingAmountNEQ(v int64) predicate.Order {
+	return predicate.Order(sql.FieldNEQ(FieldShippingAmount, v))
+}
+
+// ShippingAmountIn applies the In predicate on the "shipping_amount" field.
+func ShippingAmountIn(vs ...int64) predicate.Order {
+	return predicate.Order(sql.FieldIn(FieldShippingAmount, vs...))
+}
+
+// ShippingAmountNotIn applies the NotIn predicate on the "shipping_amount" field.
+func ShippingAmountNotIn(vs ...int64) predicate.Order {
+	return predicate.Order(sql.FieldNotIn(FieldShippingAmount, vs...))
+}
+
+// ShippingAmountGT applies the GT predicate on the "shipping_amount" field.
+func ShippingAmountGT(v int64) predicate.Order {
+	return predicate.Order(sql.FieldGT(FieldShippingAmount, v))
+}
+
+// ShippingAmountGTE applies the GTE predicate on the "shipping_amount" field.
+func ShippingAmountGTE(v int64) predicate.Order {
+	return predicate.Order(sql.FieldGTE(FieldShippingAmount, v))
+}
+
+// ShippingAmountLT applies the LT predicate on the "shipping_amount" field.
+func ShippingAmountLT(v int64) predicate.Order {
+	return predicate.Order(sql.FieldLT(FieldShippingAmount, v))
+}
+
+// ShippingAmountLTE applies the LTE predicate on the "shipping_amount" field.
+func ShippingAmountLTE(v int64) predicate.Order {
+	return predicate.Order(sql.FieldLTE(FieldShippingAmount, v))
+}
+
+// ShippingStatusEQ applies the EQ predicate on the "shipping_status" field.
+func ShippingStatusEQ(v string) predicate.Order {
+	return predicate.Order(sql.FieldEQ(FieldShippingStatus, v))
+}
+
+// ShippingStatusNEQ applies the NEQ predicate on the "shipping_status" field.
+func ShippingStatusNEQ(v string) predicate.Order {
+	return predicate.Order(sql.FieldNEQ(FieldShippingStatus, v))
+}
+
+// ShippingStatusIn applies the In predicate on the "shipping_status" field.
+func ShippingStatusIn(vs ...string) predicate.Order {
+	return predicate.Order(sql.FieldIn(FieldShippingStatus, vs...))
+}
+
+// ShippingStatusNotIn applies the NotIn predicate on the "shipping_status" field.
+func ShippingStatusNotIn(vs ...string) predicate.Order {
+	return predicate.Order(sql.FieldNotIn(FieldShippingStatus, vs...))
+}
+
+// ShippingStatusGT applies the GT predicate on the "shipping_status" field.
+func ShippingStatusGT(v string) predicate.Order {
+	return predicate.Order(sql.FieldGT(FieldShippingStatus, v))
+}
+
+// ShippingStatusGTE applies the GTE predicate on the "shipping_status" field.
+func ShippingStatusGTE(v string) predicate.Order {
+	return predicate.Order(sql.FieldGTE(FieldShippingStatus, v))
+}
+
+// ShippingStatusLT applies the LT predicate on the "shipping_status" field.
+func ShippingStatusLT(v string) predicate.Order {
+	return predicate.Order(sql.FieldLT(FieldShippingStatus, v))
+}
+
+// ShippingStatusLTE applies the LTE predicate on the "shipping_status" field.
+func ShippingStatusLTE(v string) predicate.Order {
+	return predicate.Order(sql.FieldLTE(FieldShippingStatus, v))
+}
+
+// ShippingStatusContains applies the Contains predicate on the "shipping_status" field.
+func ShippingStatusContains(v string) predicate.Order {
+	return predicate.Order(sql.FieldContains(FieldShippingStatus, v))
+}
+
+// ShippingStatusHasPrefix applies the HasPrefix predicate on the "shipping_status" field.
+func ShippingStatusHasPrefix(v string) predicate.Order {
+	return predicate.Order(sql.FieldHasPrefix(FieldShippingStatus, v))
+}
+
+// ShippingStatusHasSuffix applies the HasSuffix predicate on the "shipping_status" field.
+func ShippingStatusHasSuffix(v string) predicate.Order {
+	return predicate.Order(sql.FieldHasSuffix(FieldShippingStatus, v))
+}
+
+// ShippingStatusEqualFold applies the EqualFold predicate on the "shipping_status" field.
+func ShippingStatusEqualFold(v string) predicate.Order {
+	return predicate.Order(sql.FieldEqualFold(FieldShippingStatus, v))
+}
+
+// ShippingStatusContainsFold applies the ContainsFold predicate on the "shipping_status" field.
+func ShippingStatusContainsFold(v string) predicate.Order {
+	return predicate.Order(sql.FieldContainsFold(FieldShippingStatus, v))
+}
+
+// ShippingAddressIsNil applies the IsNil predicate on the "shipping_address" field.
+func ShippingAddressIsNil() predicate.Order {
+	return predicate.Order(sql.FieldIsNull(FieldShippingAddress))
+}
+
+// ShippingAddressNotNil applies the NotNil predicate on the "shipping_address" field.
+func ShippingAddressNotNil() predicate.Order {
+	return predicate.Order(sql.FieldNotNull(FieldShippingAddress))
+}
+
+// RequestHashEQ applies the EQ predicate on the "request_hash" field.
+func RequestHashEQ(v string) predicate.Order {
+	return predicate.Order(sql.FieldEQ(FieldRequestHash, v))
+}
+
+// RequestHashNEQ applies the NEQ predicate on the "request_hash" field.
+func RequestHashNEQ(v string) predicate.Order {
+	return predicate.Order(sql.FieldNEQ(FieldRequestHash, v))
+}
+
+// RequestHashIn applies the In predicate on the "request_hash" field.
+func RequestHashIn(vs ...string) predicate.Order {
+	return predicate.Order(sql.FieldIn(FieldRequestHash, vs...))
+}
+
+// RequestHashNotIn applies the NotIn predicate on the "request_hash" field.
+func RequestHashNotIn(vs ...string) predicate.Order {
+	return predicate.Order(sql.FieldNotIn(FieldRequestHash, vs...))
+}
+
+// RequestHashGT applies the GT predicate on the "request_hash" field.
+func RequestHashGT(v string) predicate.Order {
+	return predicate.Order(sql.FieldGT(FieldRequestHash, v))
+}
+
+// RequestHashGTE applies the GTE predicate on the "request_hash" field.
+func RequestHashGTE(v string) predicate.Order {
+	return predicate.Order(sql.FieldGTE(FieldRequestHash, v))
+}
+
+// RequestHashLT applies the LT predicate on the "request_hash" field.
+func RequestHashLT(v string) predicate.Order {
+	return predicate.Order(sql.FieldLT(FieldRequestHash, v))
+}
+
+// RequestHashLTE applies the LTE predicate on the "request_hash" field.
+func RequestHashLTE(v string) predicate.Order {
+	return predicate.Order(sql.FieldLTE(FieldRequestHash, v))
+}
+
+// RequestHashContains applies the Contains predicate on the "request_hash" field.
+func RequestHashContains(v string) predicate.Order {
+	return predicate.Order(sql.FieldContains(FieldRequestHash, v))
+}
+
+// RequestHashHasPrefix applies the HasPrefix predicate on the "request_hash" field.
+func RequestHashHasPrefix(v string) predicate.Order {
+	return predicate.Order(sql.FieldHasPrefix(FieldRequestHash, v))
+}
+
+// RequestHashHasSuffix applies the HasSuffix predicate on the "request_hash" field.
+func RequestHashHasSuffix(v string) predicate.Order {
+	return predicate.Order(sql.FieldHasSuffix(FieldRequestHash, v))
+}
+
+// RequestHashEqualFold applies the EqualFold predicate on the "request_hash" field.
+func RequestHashEqualFold(v string) predicate.Order {
+	return predicate.Order(sql.FieldEqualFold(FieldRequestHash, v))
+}
+
+// RequestHashContainsFold applies the ContainsFold predicate on the "request_hash" field.
+func RequestHashContainsFold(v string) predicate.Order {
+	return predicate.Order(sql.FieldContainsFold(FieldRequestHash, v))
 }
 
 // TotalAmountEQ applies the EQ predicate on the "total_amount" field.

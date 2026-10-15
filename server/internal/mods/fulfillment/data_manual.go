@@ -38,6 +38,11 @@ func (r *DeliveryRepoImpl) ManualDeliver(ctx context.Context, orderNo, content, 
 		if processing {
 			return fmt.Errorf("退款处理中，请先核实退款结果")
 		}
+		if has, e := data.HasSMSOrder(ctx, client, o.ID); e != nil {
+			return e
+		} else if has {
+			return fmt.Errorf("接码订单须等待供货会话确认，不能人工补发卡密")
+		}
 		its, err := client.OrderItem.Query().Where(orderitem.OrderID(o.ID)).Order(ent.Asc(orderitem.FieldID)).All(ctx)
 		if err != nil {
 			return err
@@ -57,8 +62,14 @@ func (r *DeliveryRepoImpl) ManualDeliver(ctx context.Context, orderNo, content, 
 				}
 			}
 		}
+		if target != nil && target.GoodsType == "physical" {
+			return fmt.Errorf("实体商品请使用快递发货操作")
+		}
 		if target == nil {
 			return fmt.Errorf("请选择本订单中需要补发的商品")
+		}
+		if target.CanceledQuantity > 0 || target.FulfillmentStatus == "refunded" {
+			return fmt.Errorf("该商品已取消或退款，不能补发")
 		}
 
 		if target.FulfillmentType == orderitem.FulfillmentTypeManual && target.AssignedAdminID != 0 && target.AssignedAdminID != adminID {
@@ -129,7 +140,11 @@ func (r *DeliveryRepoImpl) ManualDeliver(ctx context.Context, orderNo, content, 
 			}
 		}
 		// Release local reserved cards replaced by manual delivery, not unrelated items.
-		if _, err := client.Card.Update().Where(card.OrderID(o.ID), card.ProductID(target.ProductID), card.SkuID(target.SkuID), card.StatusEQ(card.StatusReserved)).SetStatus(card.StatusAvailable).ClearOrderID().ClearLockedAt().Save(ctx); err != nil {
+		skuFilter := card.SkuID(target.SkuID)
+		if target.SkuID == 0 {
+			skuFilter = card.Or(card.SkuID(0), card.SkuIDIsNil())
+		}
+		if _, err := client.Card.Update().Where(card.OrderID(o.ID), card.ProductID(target.ProductID), skuFilter, card.StatusEQ(card.StatusReserved)).SetStatus(card.StatusAvailable).ClearOrderID().ClearLockedAt().Save(ctx); err != nil {
 			return err
 		}
 		if _, err := client.RefundOrder.Update().Where(refundorder.OrderID(o.ID), refundorder.StatusEQ(refundorder.StatusCreated), refundorder.ChannelEQ(refundorder.ChannelUpstream)).SetStatus(refundorder.StatusFailed).SetReason("旧自动退款未执行，管理员已选择人工补发").Save(ctx); err != nil {

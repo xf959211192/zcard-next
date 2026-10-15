@@ -7,20 +7,21 @@
     <div class="pc-cover">
       <img v-if="p.cover" :src="p.cover" :alt="p.name" loading="lazy" @error="onImgError" />
       <img v-else :src="NO_IMAGE" :alt="p.name" class="pc-noimg" loading="lazy" />
-      <span v-if="p.points_required" class="pc-points-tag">{{ p.points_required }} 积分</span>
+      <span v-if="p.points_required" class="pc-points-tag">{{ p.points_required }} {{ $t('积分') }}</span>
     </div>
     <div class="pc-body">
       <div class="pc-heading">
         <div class="pc-name" :title="p.name">{{ p.name }}</div>
-        <span v-if="p.is_recommend || p.category_recommend" class="pc-recommend-tag">推荐</span>
+        <span v-if="p.is_recommend || p.category_recommend" class="pc-recommend-tag">{{ $t('推荐') }}</span>
       </div>
-      <div class="pc-price">{{ formatMoney(flash.price(p.price_cents, p.flash_sale)) }}<span v-if="flash.active(p.flash_sale)" class="pc-flash-label">{{ (p.flash_sale?.remaining || 0) > 0 ? '秒杀' : '已抢完' }}</span></div>
-      <div v-if="showSales || showStock" class="pc-meta">
-        <span v-if="showSales" class="pc-sales">已售 {{ p.sales_count || 0 }}</span>
-        <span v-if="showStock && p.stock_visible && p.stock_status === 'stale'" class="pc-stock-reference" :title="stockHint(p)">{{ p.stock_reference === -1 ? '上次库存不限' : `参考库存 ${p.stock_reference ?? 0}` }}</span>
-        <span v-else-if="showStock && p.stock_visible && stockValue(p) >= 0">{{ stockValue(p) === 0 ? '暂时售罄' : `库存 ${stockValue(p)}` }}</span>
-        <span v-else-if="showStock && p.stock_visible && p.stock === -1" class="pc-stock-free">不限库存</span>
-        <span v-else-if="showStock && p.stock_visible" title="上游暂未提供库存，进入商品详情查询或重试">库存待确认</span>
+      <div v-if="p.product_kind === 'sms_channel'" class="pc-price">{{ $t('进入选价') }}</div>
+      <div v-else class="pc-price">{{ formatMoney(flash.price(p.price_cents, p.flash_sale)) }}<span v-if="flash.active(p.flash_sale)" class="pc-flash-label">{{ (p.flash_sale?.remaining || 0) > 0 ? $t('秒杀') : $t('已抢完') }}</span></div>
+      <div v-if="p.product_kind !== 'sms_channel' && (salesShown || stockShown)" class="pc-meta">
+        <span v-if="salesShown" class="pc-sales">{{ $t('已售') }} {{ p.sales_count || 0 }}</span>
+        <span v-if="stockShown && p.stock_status === 'stale'" class="pc-stock-reference" :title="stockHint(p)">{{ p.stock_reference === -1 ? $t('上次库存不限') : $t('参考库存 {0}', [p.stock_reference ?? 0]) }}</span>
+        <span v-else-if="stockShown && stockValue(p) >= 0">{{ stockValue(p) === 0 ? $t('暂时售罄') : $t('库存 {0}', [stockValue(p)]) }}</span>
+        <span v-else-if="stockShown && p.stock === -1" class="pc-stock-free">{{ $t('不限库存') }}</span>
+        <span v-else-if="stockShown" :title="$t('上游暂未提供库存，进入商品详情查询或重试')">{{ $t('库存待确认') }}</span>
       </div>
       <button type="button" class="btn btn-primary pc-buy" :aria-label="`${buyLabel(p, mode)}：${p.name}`" @click.stop="$router.push(`/product/${p.id}`)">{{ buyLabel(p, mode) }}</button>
     </div>
@@ -28,20 +29,23 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
+import { t as $t, localeTag } from '@/i18n';
+
 import type { Product } from '@/api';
 import { useFlashOffers } from '@/composables/flash-offers';
 const flash = useFlashOffers();
 import { formatMoney } from '@/api/client';
 import { NO_IMAGE, onImgError } from '@/no-image';
 function stockValue(p: Product) { return p.stock ?? (p.stock_status === 'unknown' || p.stock_status === 'stale' ? -2 : 0); }
-function buyLabel(p: Product, mode?: string) { return mode !== 'list' ? '查看详情' : stockValue(p) === 0 ? '查看' : stockValue(p) < -1 ? '查看详情' : '购买'; }
+function buyLabel(p: Product, mode?: string) { if(p.product_kind === 'sms_channel') return $t("选价接码"); return mode !== 'list' ? $t("查看详情") : stockValue(p) === 0 ? $t("查看") : stockValue(p) < -1 ? $t("查看详情") : $t("购买"); }
 function stockHint(p: Product) {
-  const date = p.stock_checked_at ? new Date(p.stock_checked_at * 1000).toLocaleString() : '';
-  return `上次同步${date ? '：' + date : ''}，仅供参考；进入商品详情重新核对库存`;
+  const date = p.stock_checked_at ? new Date(p.stock_checked_at * 1000).toLocaleString(localeTag.value) : '';
+  return $t("上次同步{0}，仅供参考；进入商品详情重新核对库存", [date ? '：' + date : '']);
 }
 
 
-defineProps<{
+const props = defineProps<{
   p: Product;
   mode?: 'grid' | 'list';
   /** 卡片「已售」显示（template.show_sales；缺省显示） */
@@ -49,6 +53,8 @@ defineProps<{
   /** 卡片「库存」显示（template.show_stock；叠加商品级 stock_visible；缺省显示） */
   showStock?: boolean;
 }>();
+const salesShown=computed(()=>props.showSales !== false && props.p.sales_visible !== false);
+const stockShown=computed(()=>props.showStock !== false && props.p.stock_visible !== false && ((props.p.product_property || props.p.goods_type) !== 'physical' || props.p.track_inventory !== false));
 </script>
 
 <style scoped>

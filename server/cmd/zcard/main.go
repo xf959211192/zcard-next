@@ -41,6 +41,7 @@ import (
 	"github.com/NovaWorks/zcard-next/server/internal/mods/reseller"
 	"github.com/NovaWorks/zcard-next/server/internal/mods/settings"
 	"github.com/NovaWorks/zcard-next/server/internal/mods/supplier"
+	"github.com/NovaWorks/zcard-next/server/internal/mods/update"
 	"github.com/NovaWorks/zcard-next/server/internal/mods/wallet"
 	"github.com/NovaWorks/zcard-next/server/internal/platform/events"
 	"github.com/NovaWorks/zcard-next/server/internal/platform/updater"
@@ -101,6 +102,16 @@ func main() {
 		err = runDBTest(args)
 	case "self-update":
 		err = runSelfUpdate(args)
+	case "docker-backup-check":
+		var bc *conf.Bootstrap
+		bc, err = loadBootstrap("/app/configs")
+		if err == nil {
+			var dialect string
+			dialect, err = update.DockerBackupDialect(bc.Data)
+			if err == nil {
+				fmt.Println(dialect)
+			}
+		}
 	case "version":
 		fmt.Printf("%s %s (%s)\n", Name, Version, id)
 	case "help", "-h", "--help":
@@ -476,7 +487,7 @@ func runInstall(args []string) error {
 //	all = HTTP + gRPC + worker + 后台（默认，单机形态）
 //	api = HTTP + gRPC + 后台relay（多实例 api，cron 不注册）
 //	worker = worker + 后台（消费与周期任务，多实例 asynq 竞争消费）
-func newApp(logger *slog.Logger, hs *khttp.Server, gs *kgrpc.Server, ws *server.WorkerServer, bs *server.BackgroundServer, dp *data.Dispatcher, procureSvc *procurement.ProcureService, notifyDisp *notify.Dispatcher, affiliateSvc *affiliate.AffiliateService, resellerSettleSvc *reseller.SettleService, fulfillRepo *fulfillment.DeliveryRepoImpl, pointsSvc *memberlevel.PointsService, orderUC *order.OrderUsecase, payRepo *payment.PaymentRepoImpl, walletRepo *wallet.WalletRepoImpl, stockGate orderport.UpstreamStockGate, catalogSvc *catalog.StoreCatalogService) *kratos.App {
+func newApp(logger *slog.Logger, hs *khttp.Server, gs *kgrpc.Server, ws *server.WorkerServer, bs *server.BackgroundServer, dp *data.Dispatcher, procureSvc *procurement.ProcureService, notifyDisp *notify.Dispatcher, affiliateSvc *affiliate.AffiliateService, resellerSettleSvc *reseller.SettleService, fulfillRepo *fulfillment.DeliveryRepoImpl, pointsSvc *memberlevel.PointsService, orderUC *order.OrderUsecase, payRepo *payment.PaymentRepoImpl, walletRepo *wallet.WalletRepoImpl, stockGate orderport.UpstreamStockGate, catalogSvc *catalog.StoreCatalogService, storeOrderSvc *order.StoreOrderService) *kratos.App {
 	if reader, ok := orderUC.Flash.(couponport.FlashReader); ok {
 		catalogSvc.SetFlashReader(reader)
 	}
@@ -485,6 +496,7 @@ func newApp(logger *slog.Logger, hs *khttp.Server, gs *kgrpc.Server, ws *server.
 	orderUC.SetSlowPaymentChecker(payRepo)
 	// 破环点：上游代发项下单前实时库存预检 ← supply 网关实现
 	orderUC.SetStockGate(stockGate)
+	storeOrderSvc.SetRecoverySender(notifyDisp)
 	if lookup, ok := stockGate.(catalogport.StockLookup); ok {
 		catalogSvc.SetStockLookup(lookup)
 	}
@@ -497,16 +509,17 @@ func newApp(logger *slog.Logger, hs *khttp.Server, gs *kgrpc.Server, ws *server.
 		Fn:       procureSvc.OnOrderPaid,
 	})
 	// 事件订阅注册（）：order.paid → 三级佣金入账；order.refunded → 逆向扣回
-	dp.Register(data.HandlerReg{Consumer: "affiliate.settle", Type: events.OrderPaid, Fn: affiliateSvc.OnOrderPaid})
-	dp.Register(data.HandlerReg{Consumer: "affiliate.reversal", Type: events.OrderRefunded, Fn: affiliateSvc.OnOrderRefunded})
+	dp.Register(data.HandlerReg{Consumer: "affiliate.settle", Type: events.OrderPaid, Fn: affiliateSvc.OnOrderPaid, Transactional: true})
+	dp.Register(data.HandlerReg{Consumer: "affiliate.reversal", Type: events.OrderRefunded, Fn: affiliateSvc.OnOrderRefunded, Transactional: true})
 	// 事件订阅注册（）：order.paid → 分站利润入账（订单快照 subsite_profit/profit_eligible）
-	dp.Register(data.HandlerReg{Consumer: "reseller.settle", Type: events.OrderPaid, Fn: resellerSettleSvc.OnOrderPaid})
+	dp.Register(data.HandlerReg{Consumer: "reseller.settle", Type: events.OrderPaid, Fn: resellerSettleSvc.OnOrderPaid, Transactional: true})
 	// 事件订阅注册（ ）：order.paid → 自动交付（reserved→used/即删 + 交付记录；幂等由 FulfillOrder 兜底）
-	dp.Register(data.HandlerReg{Consumer: "fulfillment.deliver", Type: events.OrderPaid, Fn: fulfillRepo.OnOrderPaid})
+	dp.Register(data.HandlerReg{Consumer: "fulfillment.deliver", Type: events.OrderPaid, Fn: fulfillRepo.OnOrderPaid, Transactional: true})
 	// 事件订阅注册（）：order.refunded → 分站利润扣回（refund_deduct 负行/负债态）
-	dp.Register(data.HandlerReg{Consumer: "reseller.reversal", Type: events.OrderRefunded, Fn: resellerSettleSvc.OnOrderRefunded})
+	dp.Register(data.HandlerReg{Consumer: "reseller.reversal", Type: events.OrderRefunded, Fn: resellerSettleSvc.OnOrderRefunded, Transactional: true})
 	// 事件订阅注册（）：order.paid → 积分产生（等级 points_rule；幂等键 points:<orderID>）
 	dp.Register(data.HandlerReg{Consumer: "memberlevel.points_earn", Type: events.OrderPaid, Fn: pointsSvc.OnOrderPaid, Transactional: true})
+	dp.Register(data.HandlerReg{Consumer: "memberlevel.points_refund", Type: events.OrderRefunded, Fn: pointsSvc.OnOrderRefunded, Transactional: true})
 	// 事件订阅注册（）：交易事件 → 通知分发（email/inbox 按模板逐通道投递）
 	for _, typ := range notify.SubscribedEvents() {
 		t := typ

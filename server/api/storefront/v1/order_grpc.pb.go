@@ -20,11 +20,16 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	StoreOrderService_CreateOrder_FullMethodName     = "/zcard.api.storefront.v1.StoreOrderService/CreateOrder"
-	StoreOrderService_GetOrder_FullMethodName        = "/zcard.api.storefront.v1.StoreOrderService/GetOrder"
-	StoreOrderService_ListMyOrders_FullMethodName    = "/zcard.api.storefront.v1.StoreOrderService/ListMyOrders"
-	StoreOrderService_ListGuestOrders_FullMethodName = "/zcard.api.storefront.v1.StoreOrderService/ListGuestOrders"
-	StoreOrderService_CancelMyOrder_FullMethodName   = "/zcard.api.storefront.v1.StoreOrderService/CancelMyOrder"
+	StoreOrderService_SendOrderAccessCode_FullMethodName = "/zcard.api.storefront.v1.StoreOrderService/SendOrderAccessCode"
+	StoreOrderService_RecoverOrderAccess_FullMethodName  = "/zcard.api.storefront.v1.StoreOrderService/RecoverOrderAccess"
+	StoreOrderService_QuoteOrder_FullMethodName          = "/zcard.api.storefront.v1.StoreOrderService/QuoteOrder"
+	StoreOrderService_ShippingRegions_FullMethodName     = "/zcard.api.storefront.v1.StoreOrderService/ShippingRegions"
+	StoreOrderService_ReceiveShipment_FullMethodName     = "/zcard.api.storefront.v1.StoreOrderService/ReceiveShipment"
+	StoreOrderService_CreateOrder_FullMethodName         = "/zcard.api.storefront.v1.StoreOrderService/CreateOrder"
+	StoreOrderService_GetOrder_FullMethodName            = "/zcard.api.storefront.v1.StoreOrderService/GetOrder"
+	StoreOrderService_ListMyOrders_FullMethodName        = "/zcard.api.storefront.v1.StoreOrderService/ListMyOrders"
+	StoreOrderService_ListGuestOrders_FullMethodName     = "/zcard.api.storefront.v1.StoreOrderService/ListGuestOrders"
+	StoreOrderService_CancelMyOrder_FullMethodName       = "/zcard.api.storefront.v1.StoreOrderService/CancelMyOrder"
 )
 
 // StoreOrderServiceClient is the client API for StoreOrderService service.
@@ -33,6 +38,11 @@ const (
 //
 // StoreOrderService 顾客下单。
 type StoreOrderServiceClient interface {
+	SendOrderAccessCode(ctx context.Context, in *OrderAccessCodeRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	RecoverOrderAccess(ctx context.Context, in *OrderAccessRecoveryRequest, opts ...grpc.CallOption) (*OrderAccessReply, error)
+	QuoteOrder(ctx context.Context, in *CreateOrderRequest, opts ...grpc.CallOption) (*CreateOrderReply, error)
+	ShippingRegions(ctx context.Context, in *ShippingRegionsRequest, opts ...grpc.CallOption) (*ShippingRegionsReply, error)
+	ReceiveShipment(ctx context.Context, in *ReceiveShipmentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// CreateOrder 下单（锁卡→算价→快照→事件；Idempotency-Key 头防重）。
 	CreateOrder(ctx context.Context, in *CreateOrderRequest, opts ...grpc.CallOption) (*CreateOrderReply, error)
 	// GetOrder 凭单号+查询密码查单（三重门之一二：查询密码/登录态本人）。
@@ -52,6 +62,56 @@ type storeOrderServiceClient struct {
 
 func NewStoreOrderServiceClient(cc grpc.ClientConnInterface) StoreOrderServiceClient {
 	return &storeOrderServiceClient{cc}
+}
+
+func (c *storeOrderServiceClient) SendOrderAccessCode(ctx context.Context, in *OrderAccessCodeRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, StoreOrderService_SendOrderAccessCode_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *storeOrderServiceClient) RecoverOrderAccess(ctx context.Context, in *OrderAccessRecoveryRequest, opts ...grpc.CallOption) (*OrderAccessReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(OrderAccessReply)
+	err := c.cc.Invoke(ctx, StoreOrderService_RecoverOrderAccess_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *storeOrderServiceClient) QuoteOrder(ctx context.Context, in *CreateOrderRequest, opts ...grpc.CallOption) (*CreateOrderReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CreateOrderReply)
+	err := c.cc.Invoke(ctx, StoreOrderService_QuoteOrder_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *storeOrderServiceClient) ShippingRegions(ctx context.Context, in *ShippingRegionsRequest, opts ...grpc.CallOption) (*ShippingRegionsReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ShippingRegionsReply)
+	err := c.cc.Invoke(ctx, StoreOrderService_ShippingRegions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *storeOrderServiceClient) ReceiveShipment(ctx context.Context, in *ReceiveShipmentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, StoreOrderService_ReceiveShipment_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *storeOrderServiceClient) CreateOrder(ctx context.Context, in *CreateOrderRequest, opts ...grpc.CallOption) (*CreateOrderReply, error) {
@@ -110,6 +170,11 @@ func (c *storeOrderServiceClient) CancelMyOrder(ctx context.Context, in *CancelM
 //
 // StoreOrderService 顾客下单。
 type StoreOrderServiceServer interface {
+	SendOrderAccessCode(context.Context, *OrderAccessCodeRequest) (*emptypb.Empty, error)
+	RecoverOrderAccess(context.Context, *OrderAccessRecoveryRequest) (*OrderAccessReply, error)
+	QuoteOrder(context.Context, *CreateOrderRequest) (*CreateOrderReply, error)
+	ShippingRegions(context.Context, *ShippingRegionsRequest) (*ShippingRegionsReply, error)
+	ReceiveShipment(context.Context, *ReceiveShipmentRequest) (*emptypb.Empty, error)
 	// CreateOrder 下单（锁卡→算价→快照→事件；Idempotency-Key 头防重）。
 	CreateOrder(context.Context, *CreateOrderRequest) (*CreateOrderReply, error)
 	// GetOrder 凭单号+查询密码查单（三重门之一二：查询密码/登录态本人）。
@@ -131,6 +196,21 @@ type StoreOrderServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedStoreOrderServiceServer struct{}
 
+func (UnimplementedStoreOrderServiceServer) SendOrderAccessCode(context.Context, *OrderAccessCodeRequest) (*emptypb.Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method SendOrderAccessCode not implemented")
+}
+func (UnimplementedStoreOrderServiceServer) RecoverOrderAccess(context.Context, *OrderAccessRecoveryRequest) (*OrderAccessReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method RecoverOrderAccess not implemented")
+}
+func (UnimplementedStoreOrderServiceServer) QuoteOrder(context.Context, *CreateOrderRequest) (*CreateOrderReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method QuoteOrder not implemented")
+}
+func (UnimplementedStoreOrderServiceServer) ShippingRegions(context.Context, *ShippingRegionsRequest) (*ShippingRegionsReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method ShippingRegions not implemented")
+}
+func (UnimplementedStoreOrderServiceServer) ReceiveShipment(context.Context, *ReceiveShipmentRequest) (*emptypb.Empty, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReceiveShipment not implemented")
+}
 func (UnimplementedStoreOrderServiceServer) CreateOrder(context.Context, *CreateOrderRequest) (*CreateOrderReply, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateOrder not implemented")
 }
@@ -165,6 +245,96 @@ func RegisterStoreOrderServiceServer(s grpc.ServiceRegistrar, srv StoreOrderServ
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&StoreOrderService_ServiceDesc, srv)
+}
+
+func _StoreOrderService_SendOrderAccessCode_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OrderAccessCodeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StoreOrderServiceServer).SendOrderAccessCode(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StoreOrderService_SendOrderAccessCode_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StoreOrderServiceServer).SendOrderAccessCode(ctx, req.(*OrderAccessCodeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _StoreOrderService_RecoverOrderAccess_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(OrderAccessRecoveryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StoreOrderServiceServer).RecoverOrderAccess(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StoreOrderService_RecoverOrderAccess_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StoreOrderServiceServer).RecoverOrderAccess(ctx, req.(*OrderAccessRecoveryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _StoreOrderService_QuoteOrder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateOrderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StoreOrderServiceServer).QuoteOrder(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StoreOrderService_QuoteOrder_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StoreOrderServiceServer).QuoteOrder(ctx, req.(*CreateOrderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _StoreOrderService_ShippingRegions_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ShippingRegionsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StoreOrderServiceServer).ShippingRegions(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StoreOrderService_ShippingRegions_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StoreOrderServiceServer).ShippingRegions(ctx, req.(*ShippingRegionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _StoreOrderService_ReceiveShipment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReceiveShipmentRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StoreOrderServiceServer).ReceiveShipment(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StoreOrderService_ReceiveShipment_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StoreOrderServiceServer).ReceiveShipment(ctx, req.(*ReceiveShipmentRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _StoreOrderService_CreateOrder_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -265,6 +435,26 @@ var StoreOrderService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*StoreOrderServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
+			MethodName: "SendOrderAccessCode",
+			Handler:    _StoreOrderService_SendOrderAccessCode_Handler,
+		},
+		{
+			MethodName: "RecoverOrderAccess",
+			Handler:    _StoreOrderService_RecoverOrderAccess_Handler,
+		},
+		{
+			MethodName: "QuoteOrder",
+			Handler:    _StoreOrderService_QuoteOrder_Handler,
+		},
+		{
+			MethodName: "ShippingRegions",
+			Handler:    _StoreOrderService_ShippingRegions_Handler,
+		},
+		{
+			MethodName: "ReceiveShipment",
+			Handler:    _StoreOrderService_ReceiveShipment_Handler,
+		},
+		{
 			MethodName: "CreateOrder",
 			Handler:    _StoreOrderService_CreateOrder_Handler,
 		},
@@ -283,6 +473,184 @@ var StoreOrderService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CancelMyOrder",
 			Handler:    _StoreOrderService_CancelMyOrder_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "storefront/v1/order.proto",
+}
+
+const (
+	StoreSMSService_ListSMSProduct_FullMethodName = "/zcard.api.storefront.v1.StoreSMSService/ListSMSProduct"
+	StoreSMSService_GetSMS_FullMethodName         = "/zcard.api.storefront.v1.StoreSMSService/GetSMS"
+	StoreSMSService_ActSMS_FullMethodName         = "/zcard.api.storefront.v1.StoreSMSService/ActSMS"
+)
+
+// StoreSMSServiceClient is the client API for StoreSMSService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type StoreSMSServiceClient interface {
+	ListSMSProduct(ctx context.Context, in *SMSProductHistoryRequest, opts ...grpc.CallOption) (*SMSProductHistoryReply, error)
+	GetSMS(ctx context.Context, in *SMSOrderRequest, opts ...grpc.CallOption) (*SMSOrderReply, error)
+	ActSMS(ctx context.Context, in *SMSActionRequest, opts ...grpc.CallOption) (*SMSOrderReply, error)
+}
+
+type storeSMSServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewStoreSMSServiceClient(cc grpc.ClientConnInterface) StoreSMSServiceClient {
+	return &storeSMSServiceClient{cc}
+}
+
+func (c *storeSMSServiceClient) ListSMSProduct(ctx context.Context, in *SMSProductHistoryRequest, opts ...grpc.CallOption) (*SMSProductHistoryReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SMSProductHistoryReply)
+	err := c.cc.Invoke(ctx, StoreSMSService_ListSMSProduct_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *storeSMSServiceClient) GetSMS(ctx context.Context, in *SMSOrderRequest, opts ...grpc.CallOption) (*SMSOrderReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SMSOrderReply)
+	err := c.cc.Invoke(ctx, StoreSMSService_GetSMS_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *storeSMSServiceClient) ActSMS(ctx context.Context, in *SMSActionRequest, opts ...grpc.CallOption) (*SMSOrderReply, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SMSOrderReply)
+	err := c.cc.Invoke(ctx, StoreSMSService_ActSMS_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// StoreSMSServiceServer is the server API for StoreSMSService service.
+// All implementations must embed UnimplementedStoreSMSServiceServer
+// for forward compatibility.
+type StoreSMSServiceServer interface {
+	ListSMSProduct(context.Context, *SMSProductHistoryRequest) (*SMSProductHistoryReply, error)
+	GetSMS(context.Context, *SMSOrderRequest) (*SMSOrderReply, error)
+	ActSMS(context.Context, *SMSActionRequest) (*SMSOrderReply, error)
+	mustEmbedUnimplementedStoreSMSServiceServer()
+}
+
+// UnimplementedStoreSMSServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedStoreSMSServiceServer struct{}
+
+func (UnimplementedStoreSMSServiceServer) ListSMSProduct(context.Context, *SMSProductHistoryRequest) (*SMSProductHistoryReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListSMSProduct not implemented")
+}
+func (UnimplementedStoreSMSServiceServer) GetSMS(context.Context, *SMSOrderRequest) (*SMSOrderReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetSMS not implemented")
+}
+func (UnimplementedStoreSMSServiceServer) ActSMS(context.Context, *SMSActionRequest) (*SMSOrderReply, error) {
+	return nil, status.Error(codes.Unimplemented, "method ActSMS not implemented")
+}
+func (UnimplementedStoreSMSServiceServer) mustEmbedUnimplementedStoreSMSServiceServer() {}
+func (UnimplementedStoreSMSServiceServer) testEmbeddedByValue()                         {}
+
+// UnsafeStoreSMSServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to StoreSMSServiceServer will
+// result in compilation errors.
+type UnsafeStoreSMSServiceServer interface {
+	mustEmbedUnimplementedStoreSMSServiceServer()
+}
+
+func RegisterStoreSMSServiceServer(s grpc.ServiceRegistrar, srv StoreSMSServiceServer) {
+	// If the following call panics, it indicates UnimplementedStoreSMSServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&StoreSMSService_ServiceDesc, srv)
+}
+
+func _StoreSMSService_ListSMSProduct_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SMSProductHistoryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StoreSMSServiceServer).ListSMSProduct(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StoreSMSService_ListSMSProduct_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StoreSMSServiceServer).ListSMSProduct(ctx, req.(*SMSProductHistoryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _StoreSMSService_GetSMS_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SMSOrderRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StoreSMSServiceServer).GetSMS(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StoreSMSService_GetSMS_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StoreSMSServiceServer).GetSMS(ctx, req.(*SMSOrderRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _StoreSMSService_ActSMS_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SMSActionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StoreSMSServiceServer).ActSMS(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: StoreSMSService_ActSMS_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StoreSMSServiceServer).ActSMS(ctx, req.(*SMSActionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// StoreSMSService_ServiceDesc is the grpc.ServiceDesc for StoreSMSService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var StoreSMSService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "zcard.api.storefront.v1.StoreSMSService",
+	HandlerType: (*StoreSMSServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ListSMSProduct",
+			Handler:    _StoreSMSService_ListSMSProduct_Handler,
+		},
+		{
+			MethodName: "GetSMS",
+			Handler:    _StoreSMSService_GetSMS_Handler,
+		},
+		{
+			MethodName: "ActSMS",
+			Handler:    _StoreSMSService_ActSMS_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

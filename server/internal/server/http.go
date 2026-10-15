@@ -78,6 +78,8 @@ func NewHTTPServer(
 	reviewSvc *catalog.StoreReviewService,
 	supplyAdminSvc *supply.AdminSupplyService,
 	procureAdminSvc *procurement.AdminProcurementService,
+	smsSvc *procurement.StoreSMSService,
+	smsChannelSvc *supply.StoreSMSChannelService,
 	supplyAPISvc *supplier.SupplyAPIService,
 	supplierAdminSvc *supplier.AdminSupplierService,
 	supplierStoreSvc *supplier.StoreSupplierService,
@@ -141,6 +143,7 @@ func NewHTTPServer(
 	var opts = []khttp.ServerOption{
 		khttp.Filter(
 			requestDeadlineFilter(requestTimeout),
+			privateOrderResponseFilter,
 			corsFilter,
 			// ：租户域名解析（Filter 层——中间件拿不到 Host；最外层确保全链路继承）
 			tenantFilter(tenancyMainDomain(c), resellerRepo),
@@ -169,7 +172,7 @@ func NewHTTPServer(
 				}
 				return nil
 			}),
-			i18nMiddleware("zh_CN"),
+			i18nMiddleware(settings.NewRepoImpl(d)),
 			// ：storefront user realm JWT（解析失败放行——游客端点不受影响；
 			// 需登录端点由业务侧 claims==nil 自行 401）
 			userAuthMiddleware(signer),
@@ -234,6 +237,8 @@ func NewHTTPServer(
 	supplyv1.RegisterSupplyServiceHTTPServer(srv, supplyAPISvc)
 	adminv1.RegisterAdminSupplyServiceHTTPServer(srv, supplyAdminSvc)
 	adminv1.RegisterAdminProcurementServiceHTTPServer(srv, procureAdminSvc)
+	storefrontv1.RegisterStoreSMSServiceHTTPServer(srv, smsSvc)
+	storefrontv1.RegisterStoreSMSChannelServiceHTTPServer(srv, smsChannelSvc)
 	adminv1.RegisterAdminSupplierServiceHTTPServer(srv, supplierAdminSvc)
 	adminv1.RegisterAdminContentServiceHTTPServer(srv, contentAdminSvc)
 	storefrontv1.RegisterStoreContentServiceHTTPServer(srv, contentStoreSvc)
@@ -376,12 +381,24 @@ func contextWithTimeout(r *http.Request) (ctx context.Context, cancel context.Ca
 	return context.WithTimeout(r.Context(), 3*time.Second)
 }
 
-// corsFilter CORS 过滤器（开发阶段前后端联调；生产同源部署无此问题—— 按环境开关化）。
+// Order data and bearer credentials must never be stored by shared caches.
+func privateOrderResponseFilter(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/v1/storefront/orders") ||
+			strings.HasPrefix(r.URL.Path, "/api/v1/storefront/payments") ||
+			r.URL.Path == "/api/v1/storefront/payment/quote" {
+			w.Header().Set("Cache-Control", "no-store, private")
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// corsFilter CORS 过滤器（开发阶段前后端联调）。
 func corsFilter(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,PATCH,OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Authorization,Content-Type,X-Requested-With")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization,Content-Type,X-Requested-With,Accept-Language,Idempotency-Key,X-Order-Access-Token")
 		w.Header().Set("Access-Control-Max-Age", "86400")
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)

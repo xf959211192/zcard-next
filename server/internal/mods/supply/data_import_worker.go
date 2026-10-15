@@ -258,11 +258,21 @@ func (s *SyncService) validateImportItem(ctx context.Context, conn *ent.SupplyCo
 	if err != nil {
 		return err
 	}
-	if p.UpstreamSourceID != conn.ID || p.UpstreamProductCode != item.Code || productRevision(p) != item.LocalRevision {
+	revision := productRevision(p)
+	if strings.HasPrefix(item.LocalRevision, "sms-rule-v1:") {
+		revision, err = s.repo.importProductRevision(ctx, p)
+		if err != nil {
+			return err
+		}
+	}
+	if p.UpstreamSourceID != conn.ID || p.UpstreamProductCode != item.Code || revision != item.LocalRevision {
 		return errImportChanged
 	}
 	if e := data.GuardUpstreamDelivery(ctx, c, p); e != nil {
 		return e
+	}
+	if p.ProductKind == "sms_channel" {
+		return nil // Channel entries have dynamic prices, never a static-price baseline.
 	}
 	if item.Saved {
 		return nil
@@ -311,6 +321,22 @@ func (s *SyncService) attemptImportItem(ctx context.Context, task *ent.SupplySyn
 	if err := json.Unmarshal(item.Snapshot, &p); err != nil {
 		return err
 	}
+	if p.DeliveryKind == "sms_activation" {
+		reader, ok := a.(interface {
+			RefreshProduct(context.Context, *adapter.Product) (*adapter.Product, error)
+		})
+		if !ok {
+			return fmt.Errorf("接码目录需要支持商品详情的驱动")
+		}
+		fresh, e := reader.RefreshProduct(ctx, &p)
+		if e != nil {
+			return e
+		}
+		if fresh.DeliveryKind != p.DeliveryKind || fresh.ProductKind != p.ProductKind || !fresh.IsActive {
+			return fmt.Errorf("接码商品交付类型变化或已下架")
+		}
+		p = *fresh
+	}
 	if q, ok := a.(adapter.AccountQuoter); ok && p.IsActive {
 		quoteCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
 		quoted, err := q.QuoteProduct(quoteCtx, &p)
@@ -332,8 +358,9 @@ func (s *SyncService) attemptImportItem(ctx context.Context, task *ent.SupplySyn
 	}
 	mediaCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	cover := s.coverFor(mediaCtx, mapping, conn, p.Cover)
+	description := s.descriptionFor(mediaCtx, mapping, conn, p.Description)
 	cancel()
-	cp := &importCheckpoint{holdStock: item.LocalProductID == 0, cover: cover}
+	cp := &importCheckpoint{holdStock: item.LocalProductID == 0, cover: cover, description: description}
 	if id, ok := payload.ProductCategories[item.Code]; ok {
 		cp.categoryID = &id
 	}
@@ -361,7 +388,11 @@ func (s *SyncService) attemptImportItem(ctx context.Context, task *ent.SupplySyn
 		if err != nil {
 			return err
 		}
-		return s.repo.entClient(ctx).SupplyImportItem.UpdateOneID(item.ID).SetSaved(true).SetSnapshot(json.RawMessage(`{}`)).SetCreated(created).SetLocalProductID(id).SetLocalRevision(productRevision(local)).SetStage("stock").SetState("pending").SetAttempts(0).SetNextAttemptAt(0).SetErrorCode("").SetErrorSummary("").SetActivateAfterStock(created && p.IsActive && payload.Mode != PriceModePending).Exec(ctx)
+		revision, err := s.repo.importProductRevision(ctx, local)
+		if err != nil {
+			return err
+		}
+		return s.repo.entClient(ctx).SupplyImportItem.UpdateOneID(item.ID).SetSaved(true).SetSnapshot(json.RawMessage(`{}`)).SetCreated(created).SetLocalProductID(id).SetLocalRevision(revision).SetStage("stock").SetState("pending").SetAttempts(0).SetNextAttemptAt(0).SetErrorCode("").SetErrorSummary("").SetActivateAfterStock(created && p.IsActive && payload.Mode != PriceModePending).Exec(ctx)
 	}
 	_, err = s.importOne(ctx, conn, &p, payload.Categories, payload.Mode, payload.Percent, payload.Amount, cp)
 	return err
@@ -370,12 +401,23 @@ func (s *SyncService) attemptImportItem(ctx context.Context, task *ent.SupplySyn
 func (s *SyncService) importStock(ctx context.Context, task *ent.SupplySyncTask, payload *importPayload, conn *ent.SupplyConnection, a adapter.Adapter, item *ent.SupplyImportItem) error {
 	started := time.Now().UTC()
 	stockCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	stock, err := a.GetStock(stockCtx, item.Code, "")
+	local, e := s.repo.entClient(ctx).Product.Get(ctx, item.LocalProductID)
+	if e != nil {
+		cancel()
+		return e
+	}
+	var stock int32
+	var err error
+	if local.ProductKind == "sms_channel" {
+		stock = -2
+	} else {
+		stock, err = a.GetStock(stockCtx, item.Code, "")
+	}
 	cancel()
 	if err != nil {
 		return err
 	}
-	if stock < -1 {
+	if stock < -1 && local.ProductKind != "sms_channel" {
 		return fmt.Errorf("货源库存无效")
 	}
 	return data.Tx(ctx, s.repo.data, func(ctx context.Context) error {

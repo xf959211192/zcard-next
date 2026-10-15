@@ -119,27 +119,14 @@ func orderAmountOf(items []port.CartItem) money.Cents {
 
 // ReturnByOrder 返还券（取消/退款路径调用；过期不返）。
 func (r *CouponRepoImpl) ReturnByOrder(ctx context.Context, orderID uint64) error {
-	client := data.Client(ctx, r.data)
-	rows, err := client.Coupon.Query().
-		Where(coupon.UsedOrderID(orderID), coupon.StatusEQ(coupon.StatusUsed)).
-		All(ctx)
-	if err != nil {
-		return err
-	}
-	for _, c := range rows {
-		if !c.ExpireAt.IsZero() && time.Now().UTC().After(c.ExpireAt) {
-			continue // 过期不返（口径：作废）
-		}
-		_, err = client.Coupon.UpdateOneID(c.ID).
-			SetStatus(coupon.StatusUnused).
-			ClearUsedAt().
-			ClearUsedOrderID().
-			Save(ctx)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	// A stale cancellation must never clear a coupon reused by a newer order.
+	_, err := data.Client(ctx, r.data).Coupon.Update().
+		Where(coupon.UsedOrderID(orderID), coupon.StatusEQ(coupon.StatusUsed), unexpiredCoupon(time.Now().UTC())).
+		SetStatus(coupon.StatusUnused).
+		ClearUsedAt().
+		ClearUsedOrderID().
+		Save(ctx)
+	return err
 }
 
 // Redeem 兑换码领券（用户凭 code 领取：未指派券回填 user_id）。
@@ -190,7 +177,7 @@ func (r *CouponRepoImpl) GrantToUser(ctx context.Context, batchID string, userID
 // ListMyCoupons 用户可用券（未用未过期）。
 func (r *CouponRepoImpl) ListMyCoupons(ctx context.Context, userID uint64) ([]*ent.Coupon, error) {
 	return data.Client(ctx, r.data).Coupon.Query().
-		Where(coupon.UserID(userID), coupon.StatusEQ(coupon.StatusUnused)).
+		Where(coupon.UserID(userID), coupon.StatusEQ(coupon.StatusUnused), unexpiredCoupon(time.Now().UTC())).
 		Order(ent.Desc(coupon.FieldID)).
 		Limit(100).
 		All(ctx)
@@ -366,7 +353,7 @@ func promoScopeHit(scope map[string]any, productID, categoryID uint64) bool {
 // ── admin CRUD（秒杀/促销）────────────────────────────────
 
 // CreateFlash 创建秒杀。
-func (r *CouponRepoImpl) CreateFlash(ctx context.Context, productID, skuID uint64, flashPrice int64, startAt, endAt time.Time, limitQty, perUserLimit int32) (*ent.FlashSale, error) {
+func (r *CouponRepoImpl) createFlash(ctx context.Context, productID, skuID uint64, flashPrice int64, startAt, endAt time.Time, limitQty, perUserLimit int32) (*ent.FlashSale, error) {
 	return data.Client(ctx, r.data).FlashSale.Create().
 		SetProductID(productID).
 		SetSkuID(skuID).
@@ -402,7 +389,7 @@ func (r *CouponRepoImpl) DeleteFlash(ctx context.Context, id uint64) error {
 }
 
 // UpsertPromotion 创建/更新促销。
-func (r *CouponRepoImpl) UpsertPromotion(ctx context.Context, id uint64, name string, scope map[string]any, typ string, threshold, discount, specialPrice int64, startAt, endAt time.Time, enabled bool) (*ent.Promotion, error) {
+func (r *CouponRepoImpl) upsertPromotion(ctx context.Context, id uint64, name string, scope map[string]any, typ string, threshold, discount, specialPrice int64, startAt, endAt time.Time, enabled bool) (*ent.Promotion, error) {
 	if typ == "percent" && (discount <= 0 || discount > 10000) {
 		return nil, fmt.Errorf("coupon.PROMO_RATE_INVALID")
 	}
@@ -477,4 +464,31 @@ func toPromoPB(p *ent.Promotion) *adminv1.PromotionItem {
 		}
 	}
 	return out
+}
+
+// EligibleItems exposes the exact scoped rows for order-line refund allocation.
+func (r *CouponRepoImpl) EligibleItems(ctx context.Context, id, level uint64, items []port.CartItem) ([]port.CartItem, error) {
+	c, e := data.Client(ctx, r.data).Coupon.Get(ctx, id)
+	if e != nil {
+		return nil, e
+	}
+	return scopeItems(c.Scope, items, level), nil
+}
+
+func (r *CouponRepoImpl) CreateFlash(ctx context.Context, productID, skuID uint64, flashPrice int64, startAt, endAt time.Time, limitQty, perUserLimit int32) (out *ent.FlashSale, err error) {
+	err = data.CurrencyTx(ctx, r.data, func(ctx context.Context) error {
+		var e error
+		out, e = r.createFlash(ctx, productID, skuID, flashPrice, startAt, endAt, limitQty, perUserLimit)
+		return e
+	})
+	return out, err
+}
+
+func (r *CouponRepoImpl) UpsertPromotion(ctx context.Context, id uint64, name string, scope map[string]any, typ string, threshold, discount, specialPrice int64, startAt, endAt time.Time, enabled bool) (out *ent.Promotion, err error) {
+	err = data.CurrencyTx(ctx, r.data, func(ctx context.Context) error {
+		var e error
+		out, e = r.upsertPromotion(ctx, id, name, scope, typ, threshold, discount, specialPrice, startAt, endAt, enabled)
+		return e
+	})
+	return out, err
 }

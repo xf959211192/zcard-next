@@ -1,3 +1,5 @@
+import { locale as activeLocale } from '@/i18n';
+import { t as $t } from '@/i18n';
 import { loadPublicConfig } from '@/config';
 import { api } from './client';
 
@@ -34,6 +36,10 @@ export interface Sku {
 }
 
 export interface Product {
+ product_property?: 'virtual' | 'physical'; track_inventory?:boolean; sales_visible?:boolean;
+ product_kind?: string;
+ delivery_kind?:string; sms_product?:Record<string,string>; sms_sales_enabled?:boolean;
+ goods_type?:string; shipping_mode?:string; shipping_fee_cents?:number; shipping_countries?:string[];
  fulfillment_mode?: string; manual_stock?: number;
   flash_sale?: FlashOffer;
   id: number;
@@ -73,6 +79,8 @@ export interface ListProductsReply {
 }
 
 export interface CreateOrderReply {
+ order_access_token?:string;
+ shipping_cents?:number;quote_key?:string;
   order_no: string;
   total_cents: number;
   expires_at: number;
@@ -143,7 +151,8 @@ export function getProduct(id: number) {
   return api.get<Product>(`/products/${id}`);
 }
 
-export function createOrder(body: {
+export interface CreateOrderInput {
+ shipping_address?:Record<string,string>;quote_key?:string;
   items: { product_id: number; sku_id?: number; quantity: number; control_answers?: Record<string,string> }[];
   guest_contact?: string;
   query_password?: string;
@@ -154,9 +163,9 @@ export function createOrder(body: {
   ref_code?: string;    // 推广归因码（游客/无链用户下单实时归因）
   captcha_id?: string;  // 图形验证码（captcha_order 开启时游客必填）
   captcha_code?: string;
-}) {
-  return api.post<CreateOrderReply>('/orders', body);
 }
+export async function createOrder(body:CreateOrderInput, key?:string) { const r = await api.post<CreateOrderReply>('/orders',body,key?{'Idempotency-Key':key}:undefined); if(r.data?.order_access_token) rememberOrderAccessToken(r.data.order_no,r.data.order_access_token); return r; }
+export function quoteOrder(body:CreateOrderInput) { return api.post<CreateOrderReply>('/orders/quote',body); }
 
 export interface MethodItem {
   recommended?: boolean;
@@ -186,7 +195,7 @@ export function fetchPaymentChannels(scene: 'purchase' | 'member_recharge' | 'su
 }
 
 export function createPayment(order_no: string, channel: string, method?: string, quote_key?: string, query_password?: string) {
-  return api.post<CreatePaymentReply>('/payments', { order_no, channel, method: method || '', quote_key, query_password });
+  return api.post<CreatePaymentReply>('/payments', { order_no, channel, method: method || '', quote_key, query_password, order_access_token: getOrderAccessToken(order_no) });
 }
 
 export async function fetchDelivery(order_no: string, query_password: string) {
@@ -361,6 +370,7 @@ export function removeCart(id: number) {
 // ── 我的订单（ 补全）──
 
 export interface MyOrderItem {
+  shipping_status?: string;
   order_no: string;
   status: string;
   total_cents: number;
@@ -397,6 +407,8 @@ export function listGuestOrders(contact: string) {
 // ── 订单详情（GetOrder：登录态本人或查询密码）──
 
 export interface OrderItemReply {
+ delivery_kind?:string; sms_product?:Record<string,string>;
+ goods_type?:string;paid_cents?:number;shipping_cents?:number;shipped_quantity?:number;received_quantity?:number;canceled_quantity?:number;returned_quantity?:number;
  id?: number; sku_name?: string; fulfillment_type?: string; fulfillment_status?: string; form_answers_json?: string; amount_cents?: number;
   product_id: number;
   product_name: string;
@@ -405,6 +417,7 @@ export interface OrderItemReply {
 }
 
 export interface OrderDetail {
+ commerce_version?:number;shipping_status?:string;shipping_cents?:number;shipping_address?:Record<string,string>;shipments_json?:string;
  refunded_cents?: number; refunded_fee_cents?: number;
   paid_total_cents?: number;
   paid_fee_cents?: number;
@@ -417,7 +430,9 @@ export interface OrderDetail {
 }
 
 export function getOrder(orderNo: string, queryPassword?: string) {
-  return api.getSilent<OrderDetail>(`/orders/${orderNo}`, queryPassword ? { query_password: queryPassword } : undefined);
+  consumeOrderAccessLink(orderNo);
+  const token = getOrderAccessToken(orderNo);
+  return api.getSilent<OrderDetail>(`/orders/${orderNo}`, queryPassword ? { query_password: queryPassword } : undefined, token ? { 'X-Order-Access-Token': token } : undefined);
 }
 
 // 支付页/取货页共用：订单号 → 下单时设置的查询密码（sessionStorage 会话级记忆，
@@ -468,7 +483,7 @@ export async function fetchTradeConfig(): Promise<TradeConfig> {
 
 /** 联系方式要求显示名 */
 export function contactRequiredLabel(mode: string): string {
-  return ({ phone: '手机号', email: '邮箱', qq: 'QQ 号' } as Record<string, string>)[mode] || '邮箱 / 手机号 / QQ';
+  return ({ get phone() { return $t("手机号"); }, get email() { return $t("邮箱"); }, get qq() { return $t("QQ 号"); } } as Record<string, string>)[mode] || $t("邮箱 / 手机号 / QQ");
 }
 
 /** 联系方式格式校验（与后端 contactMatchesMode 同口径） */
@@ -785,7 +800,7 @@ export interface PostCategory {
 }
 
 export function listBanners(position?: string, locale?: string) {
-  return api.get<{ banners: Banner[] }>('/banners', { position, locale });
+  return api.get<{ banners: Banner[] }>('/banners', { position, locale: locale || activeLocale.value });
 }
 
 export function listPosts(type?: string, page = 1, pageSize = 20, locale?: string, categoryId = 0) {
@@ -793,17 +808,17 @@ export function listPosts(type?: string, page = 1, pageSize = 20, locale?: strin
     type,
     page,
     page_size: pageSize,
-    locale,
+    locale: locale || activeLocale.value,
     category_id: categoryId || undefined,
   });
 }
 
 export function getPost(slug: string, locale?: string) {
-  return api.get<{ post: StorePost; content: string }>(`/posts/${slug}`, { locale });
+  return api.get<{ post: StorePost; content: string }>(`/posts/${slug}`, { locale: locale || activeLocale.value });
 }
 
 export function listPostCategories(locale?: string) {
-  return api.get<{ categories: PostCategory[] }>('/post-categories', { locale });
+  return api.get<{ categories: PostCategory[] }>('/post-categories', { locale: locale || activeLocale.value });
 }
 
 /** 公告设置（config 公开下发：ops.announcement_type + ops.announcement） */
@@ -925,7 +940,7 @@ export interface PaymentQuote {
 }
 export interface PaymentQuoteRequest {
   order_no?: string; channel: string; method?: string;
-  scene?: 'purchase' | 'member_recharge' | 'supply_recharge'; amount_cents?: number; query_password?: string;
+  scene?: 'purchase' | 'member_recharge' | 'supply_recharge'; amount_cents?: number; query_password?: string; order_access_token?: string;
 }
 export function quotePayment(body: PaymentQuoteRequest) {
   return api.post<PaymentQuote>('/payment/quote', body);
@@ -934,4 +949,36 @@ export function quotePayment(body: PaymentQuoteRequest) {
 export interface InviteBenefit { valid: boolean; has_benefit: boolean; level?: LevelBrief }
 export function getInviteBenefit(code: string) {
   return api.get<InviteBenefit>(`/member-level/invite-benefit?code=${encodeURIComponent(code)}`);
+}
+
+// Order-scoped bearer credentials stay in this tab; exported links use fragments so web servers do not log them.
+const orderAccessMemory = new Map<string,string>();
+export function rememberOrderAccessToken(orderNo:string, token:string) {
+  if(!token) return;
+  orderAccessMemory.set(orderNo,token);
+  try { sessionStorage.setItem(`zc_access_${orderNo}`,token); } catch {}
+}
+export function getOrderAccessToken(orderNo:string):string {
+  try { return sessionStorage.getItem(`zc_access_${orderNo}`) || orderAccessMemory.get(orderNo) || ''; }
+  catch { return orderAccessMemory.get(orderNo) || ''; }
+}
+export function consumeOrderAccessLink(orderNo:string) {
+  if(typeof window === 'undefined') return;
+  const token = new URLSearchParams(window.location.hash.slice(1)).get('order_access');
+  if(token && /^[A-Za-z0-9_-]{43}$/.test(token)) {
+    rememberOrderAccessToken(orderNo, token);
+    history.replaceState(history.state,'',window.location.pathname+window.location.search);
+  }
+}
+export function orderAccessLink(orderNo:string):string {
+  const token=getOrderAccessToken(orderNo);
+  return `${window.location.origin}/order/${encodeURIComponent(orderNo)}${token?'#order_access='+encodeURIComponent(token):''}`;
+}
+export function sendOrderAccessCode(orderNo:string,email:string) {
+  return api.post(`/orders/${encodeURIComponent(orderNo)}/access-code`,{email});
+}
+export async function recoverOrderAccess(orderNo:string,email:string,code:string) {
+  const r=await api.post<{order_access_token:string}>(`/orders/${encodeURIComponent(orderNo)}/access-recover`,{email,code});
+  if(r.data?.order_access_token) rememberOrderAccessToken(orderNo,r.data.order_access_token);
+  return r;
 }

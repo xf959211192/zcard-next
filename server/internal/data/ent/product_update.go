@@ -58,6 +58,46 @@ func (_u *ProductUpdate) AddSubsiteID(v int64) *ProductUpdate {
 	return _u
 }
 
+// SetProductKind sets the "product_kind" field.
+func (_u *ProductUpdate) SetProductKind(v string) *ProductUpdate {
+	_u.mutation.SetProductKind(v)
+	return _u
+}
+
+// SetNillableProductKind sets the "product_kind" field if the given value is not nil.
+func (_u *ProductUpdate) SetNillableProductKind(v *string) *ProductUpdate {
+	if v != nil {
+		_u.SetProductKind(*v)
+	}
+	return _u
+}
+
+// SetDeliveryKind sets the "delivery_kind" field.
+func (_u *ProductUpdate) SetDeliveryKind(v string) *ProductUpdate {
+	_u.mutation.SetDeliveryKind(v)
+	return _u
+}
+
+// SetNillableDeliveryKind sets the "delivery_kind" field if the given value is not nil.
+func (_u *ProductUpdate) SetNillableDeliveryKind(v *string) *ProductUpdate {
+	if v != nil {
+		_u.SetDeliveryKind(*v)
+	}
+	return _u
+}
+
+// SetSmsProduct sets the "sms_product" field.
+func (_u *ProductUpdate) SetSmsProduct(v map[string]string) *ProductUpdate {
+	_u.mutation.SetSmsProduct(v)
+	return _u
+}
+
+// ClearSmsProduct clears the value of the "sms_product" field.
+func (_u *ProductUpdate) ClearSmsProduct() *ProductUpdate {
+	_u.mutation.ClearSmsProduct()
+	return _u
+}
+
 // SetCategoryID sets the "category_id" field.
 func (_u *ProductUpdate) SetCategoryID(v uint64) *ProductUpdate {
 	_u.mutation.ResetCategoryID()
@@ -110,6 +150,136 @@ func (_u *ProductUpdate) SetNillableName(v *string) *ProductUpdate {
 	if v != nil {
 		_u.SetName(*v)
 	}
+	return _u
+}
+
+// SetGoodsType sets the "goods_type" field.
+func (_u *ProductUpdate) SetGoodsType(v string) *ProductUpdate {
+	_u.mutation.SetGoodsType(v)
+	return _u
+}
+
+// SetNillableGoodsType sets the "goods_type" field if the given value is not nil.
+func (_u *ProductUpdate) SetNillableGoodsType(v *string) *ProductUpdate {
+	if v != nil {
+		_u.SetGoodsType(*v)
+	}
+	return _u
+}
+
+// SetProductProperty sets the "product_property" field.
+func (_u *ProductUpdate) SetProductProperty(v string) *ProductUpdate {
+	_u.mutation.SetProductProperty(v)
+	return _u
+}
+
+// SetNillableProductProperty sets the "product_property" field if the given value is not nil.
+func (_u *ProductUpdate) SetNillableProductProperty(v *string) *ProductUpdate {
+	if v != nil {
+		_u.SetProductProperty(*v)
+	}
+	return _u
+}
+
+// SetTrackInventory sets the "track_inventory" field.
+func (_u *ProductUpdate) SetTrackInventory(v bool) *ProductUpdate {
+	_u.mutation.SetTrackInventory(v)
+	return _u
+}
+
+// SetNillableTrackInventory sets the "track_inventory" field if the given value is not nil.
+func (_u *ProductUpdate) SetNillableTrackInventory(v *bool) *ProductUpdate {
+	if v != nil {
+		_u.SetTrackInventory(*v)
+	}
+	return _u
+}
+
+// SetSalesVisible sets the "sales_visible" field.
+func (_u *ProductUpdate) SetSalesVisible(v bool) *ProductUpdate {
+	_u.mutation.SetSalesVisible(v)
+	return _u
+}
+
+// SetNillableSalesVisible sets the "sales_visible" field if the given value is not nil.
+func (_u *ProductUpdate) SetNillableSalesVisible(v *bool) *ProductUpdate {
+	if v != nil {
+		_u.SetSalesVisible(*v)
+	}
+	return _u
+}
+
+// SetShippingMode sets the "shipping_mode" field.
+func (_u *ProductUpdate) SetShippingMode(v string) *ProductUpdate {
+	_u.mutation.SetShippingMode(v)
+	return _u
+}
+
+// SetNillableShippingMode sets the "shipping_mode" field if the given value is not nil.
+func (_u *ProductUpdate) SetNillableShippingMode(v *string) *ProductUpdate {
+	if v != nil {
+		_u.SetShippingMode(*v)
+	}
+	return _u
+}
+
+// SetShippingFee sets the "shipping_fee" field.
+func (_u *ProductUpdate) SetShippingFee(v int64) *ProductUpdate {
+	_u.mutation.ResetShippingFee()
+	_u.mutation.SetShippingFee(v)
+	return _u
+}
+
+// SetNillableShippingFee sets the "shipping_fee" field if the given value is not nil.
+func (_u *ProductUpdate) SetNillableShippingFee(v *int64) *ProductUpdate {
+	if v != nil {
+		_u.SetShippingFee(*v)
+	}
+	return _u
+}
+
+// AddShippingFee adds value to the "shipping_fee" field.
+func (_u *ProductUpdate) AddShippingFee(v int64) *ProductUpdate {
+	_u.mutation.AddShippingFee(v)
+	return _u
+}
+
+// SetShippingCountries sets the "shipping_countries" field.
+func (_u *ProductUpdate) SetShippingCountries(v []string) *ProductUpdate {
+	_u.mutation.SetShippingCountries(v)
+	return _u
+}
+
+// AppendShippingCountries appends value to the "shipping_countries" field.
+func (_u *ProductUpdate) AppendShippingCountries(v []string) *ProductUpdate {
+	_u.mutation.AppendShippingCountries(v)
+	return _u
+}
+
+// ClearShippingCountries clears the value of the "shipping_countries" field.
+func (_u *ProductUpdate) ClearShippingCountries() *ProductUpdate {
+	_u.mutation.ClearShippingCountries()
+	return _u
+}
+
+// SetPhysicalStock sets the "physical_stock" field.
+func (_u *ProductUpdate) SetPhysicalStock(v int64) *ProductUpdate {
+	_u.mutation.ResetPhysicalStock()
+	_u.mutation.SetPhysicalStock(v)
+	return _u
+}
+
+// SetNillablePhysicalStock sets the "physical_stock" field if the given value is not nil.
+func (_u *ProductUpdate) SetNillablePhysicalStock(v *int64) *ProductUpdate {
+	if v != nil {
+		_u.SetPhysicalStock(*v)
+	}
+	return _u
+}
+
+// AddPhysicalStock adds value to the "physical_stock" field.
+func (_u *ProductUpdate) AddPhysicalStock(v int64) *ProductUpdate {
+	_u.mutation.AddPhysicalStock(v)
 	return _u
 }
 
@@ -863,7 +1033,9 @@ func (_u *ProductUpdate) RemoveCards(v ...*Card) *ProductUpdate {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (_u *ProductUpdate) Save(ctx context.Context) (int, error) {
-	_u.defaults()
+	if err := _u.defaults(); err != nil {
+		return 0, err
+	}
 	return withHooks(ctx, _u.sqlSave, _u.mutation, _u.hooks)
 }
 
@@ -890,11 +1062,15 @@ func (_u *ProductUpdate) ExecX(ctx context.Context) {
 }
 
 // defaults sets the default values of the builder before save.
-func (_u *ProductUpdate) defaults() {
+func (_u *ProductUpdate) defaults() error {
 	if _, ok := _u.mutation.UpdatedAt(); !ok {
+		if product.UpdateDefaultUpdatedAt == nil {
+			return fmt.Errorf("ent: uninitialized product.UpdateDefaultUpdatedAt (forgotten import ent/runtime?)")
+		}
 		v := product.UpdateDefaultUpdatedAt()
 		_u.mutation.SetUpdatedAt(v)
 	}
+	return nil
 }
 
 // check runs all checks and user-defined validators on the builder.
@@ -902,6 +1078,11 @@ func (_u *ProductUpdate) check() error {
 	if v, ok := _u.mutation.Name(); ok {
 		if err := product.NameValidator(v); err != nil {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "Product.name": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.ProductProperty(); ok {
+		if err := product.ProductPropertyValidator(v); err != nil {
+			return &ValidationError{Name: "product_property", err: fmt.Errorf(`ent: validator failed for field "Product.product_property": %w`, err)}
 		}
 	}
 	if v, ok := _u.mutation.Slug(); ok {
@@ -963,6 +1144,18 @@ func (_u *ProductUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.AddedSubsiteID(); ok {
 		_spec.AddField(product.FieldSubsiteID, field.TypeUint64, value)
 	}
+	if value, ok := _u.mutation.ProductKind(); ok {
+		_spec.SetField(product.FieldProductKind, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.DeliveryKind(); ok {
+		_spec.SetField(product.FieldDeliveryKind, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.SmsProduct(); ok {
+		_spec.SetField(product.FieldSmsProduct, field.TypeJSON, value)
+	}
+	if _u.mutation.SmsProductCleared() {
+		_spec.ClearField(product.FieldSmsProduct, field.TypeJSON)
+	}
 	if value, ok := _u.mutation.CategoryID(); ok {
 		_spec.SetField(product.FieldCategoryID, field.TypeUint64, value)
 	}
@@ -977,6 +1170,44 @@ func (_u *ProductUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.Name(); ok {
 		_spec.SetField(product.FieldName, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.GoodsType(); ok {
+		_spec.SetField(product.FieldGoodsType, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.ProductProperty(); ok {
+		_spec.SetField(product.FieldProductProperty, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.TrackInventory(); ok {
+		_spec.SetField(product.FieldTrackInventory, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.SalesVisible(); ok {
+		_spec.SetField(product.FieldSalesVisible, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.ShippingMode(); ok {
+		_spec.SetField(product.FieldShippingMode, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.ShippingFee(); ok {
+		_spec.SetField(product.FieldShippingFee, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedShippingFee(); ok {
+		_spec.AddField(product.FieldShippingFee, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.ShippingCountries(); ok {
+		_spec.SetField(product.FieldShippingCountries, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedShippingCountries(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, product.FieldShippingCountries, value)
+		})
+	}
+	if _u.mutation.ShippingCountriesCleared() {
+		_spec.ClearField(product.FieldShippingCountries, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.PhysicalStock(); ok {
+		_spec.SetField(product.FieldPhysicalStock, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedPhysicalStock(); ok {
+		_spec.AddField(product.FieldPhysicalStock, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.Slug(); ok {
 		_spec.SetField(product.FieldSlug, field.TypeString, value)
@@ -1309,6 +1540,46 @@ func (_u *ProductUpdateOne) AddSubsiteID(v int64) *ProductUpdateOne {
 	return _u
 }
 
+// SetProductKind sets the "product_kind" field.
+func (_u *ProductUpdateOne) SetProductKind(v string) *ProductUpdateOne {
+	_u.mutation.SetProductKind(v)
+	return _u
+}
+
+// SetNillableProductKind sets the "product_kind" field if the given value is not nil.
+func (_u *ProductUpdateOne) SetNillableProductKind(v *string) *ProductUpdateOne {
+	if v != nil {
+		_u.SetProductKind(*v)
+	}
+	return _u
+}
+
+// SetDeliveryKind sets the "delivery_kind" field.
+func (_u *ProductUpdateOne) SetDeliveryKind(v string) *ProductUpdateOne {
+	_u.mutation.SetDeliveryKind(v)
+	return _u
+}
+
+// SetNillableDeliveryKind sets the "delivery_kind" field if the given value is not nil.
+func (_u *ProductUpdateOne) SetNillableDeliveryKind(v *string) *ProductUpdateOne {
+	if v != nil {
+		_u.SetDeliveryKind(*v)
+	}
+	return _u
+}
+
+// SetSmsProduct sets the "sms_product" field.
+func (_u *ProductUpdateOne) SetSmsProduct(v map[string]string) *ProductUpdateOne {
+	_u.mutation.SetSmsProduct(v)
+	return _u
+}
+
+// ClearSmsProduct clears the value of the "sms_product" field.
+func (_u *ProductUpdateOne) ClearSmsProduct() *ProductUpdateOne {
+	_u.mutation.ClearSmsProduct()
+	return _u
+}
+
 // SetCategoryID sets the "category_id" field.
 func (_u *ProductUpdateOne) SetCategoryID(v uint64) *ProductUpdateOne {
 	_u.mutation.ResetCategoryID()
@@ -1361,6 +1632,136 @@ func (_u *ProductUpdateOne) SetNillableName(v *string) *ProductUpdateOne {
 	if v != nil {
 		_u.SetName(*v)
 	}
+	return _u
+}
+
+// SetGoodsType sets the "goods_type" field.
+func (_u *ProductUpdateOne) SetGoodsType(v string) *ProductUpdateOne {
+	_u.mutation.SetGoodsType(v)
+	return _u
+}
+
+// SetNillableGoodsType sets the "goods_type" field if the given value is not nil.
+func (_u *ProductUpdateOne) SetNillableGoodsType(v *string) *ProductUpdateOne {
+	if v != nil {
+		_u.SetGoodsType(*v)
+	}
+	return _u
+}
+
+// SetProductProperty sets the "product_property" field.
+func (_u *ProductUpdateOne) SetProductProperty(v string) *ProductUpdateOne {
+	_u.mutation.SetProductProperty(v)
+	return _u
+}
+
+// SetNillableProductProperty sets the "product_property" field if the given value is not nil.
+func (_u *ProductUpdateOne) SetNillableProductProperty(v *string) *ProductUpdateOne {
+	if v != nil {
+		_u.SetProductProperty(*v)
+	}
+	return _u
+}
+
+// SetTrackInventory sets the "track_inventory" field.
+func (_u *ProductUpdateOne) SetTrackInventory(v bool) *ProductUpdateOne {
+	_u.mutation.SetTrackInventory(v)
+	return _u
+}
+
+// SetNillableTrackInventory sets the "track_inventory" field if the given value is not nil.
+func (_u *ProductUpdateOne) SetNillableTrackInventory(v *bool) *ProductUpdateOne {
+	if v != nil {
+		_u.SetTrackInventory(*v)
+	}
+	return _u
+}
+
+// SetSalesVisible sets the "sales_visible" field.
+func (_u *ProductUpdateOne) SetSalesVisible(v bool) *ProductUpdateOne {
+	_u.mutation.SetSalesVisible(v)
+	return _u
+}
+
+// SetNillableSalesVisible sets the "sales_visible" field if the given value is not nil.
+func (_u *ProductUpdateOne) SetNillableSalesVisible(v *bool) *ProductUpdateOne {
+	if v != nil {
+		_u.SetSalesVisible(*v)
+	}
+	return _u
+}
+
+// SetShippingMode sets the "shipping_mode" field.
+func (_u *ProductUpdateOne) SetShippingMode(v string) *ProductUpdateOne {
+	_u.mutation.SetShippingMode(v)
+	return _u
+}
+
+// SetNillableShippingMode sets the "shipping_mode" field if the given value is not nil.
+func (_u *ProductUpdateOne) SetNillableShippingMode(v *string) *ProductUpdateOne {
+	if v != nil {
+		_u.SetShippingMode(*v)
+	}
+	return _u
+}
+
+// SetShippingFee sets the "shipping_fee" field.
+func (_u *ProductUpdateOne) SetShippingFee(v int64) *ProductUpdateOne {
+	_u.mutation.ResetShippingFee()
+	_u.mutation.SetShippingFee(v)
+	return _u
+}
+
+// SetNillableShippingFee sets the "shipping_fee" field if the given value is not nil.
+func (_u *ProductUpdateOne) SetNillableShippingFee(v *int64) *ProductUpdateOne {
+	if v != nil {
+		_u.SetShippingFee(*v)
+	}
+	return _u
+}
+
+// AddShippingFee adds value to the "shipping_fee" field.
+func (_u *ProductUpdateOne) AddShippingFee(v int64) *ProductUpdateOne {
+	_u.mutation.AddShippingFee(v)
+	return _u
+}
+
+// SetShippingCountries sets the "shipping_countries" field.
+func (_u *ProductUpdateOne) SetShippingCountries(v []string) *ProductUpdateOne {
+	_u.mutation.SetShippingCountries(v)
+	return _u
+}
+
+// AppendShippingCountries appends value to the "shipping_countries" field.
+func (_u *ProductUpdateOne) AppendShippingCountries(v []string) *ProductUpdateOne {
+	_u.mutation.AppendShippingCountries(v)
+	return _u
+}
+
+// ClearShippingCountries clears the value of the "shipping_countries" field.
+func (_u *ProductUpdateOne) ClearShippingCountries() *ProductUpdateOne {
+	_u.mutation.ClearShippingCountries()
+	return _u
+}
+
+// SetPhysicalStock sets the "physical_stock" field.
+func (_u *ProductUpdateOne) SetPhysicalStock(v int64) *ProductUpdateOne {
+	_u.mutation.ResetPhysicalStock()
+	_u.mutation.SetPhysicalStock(v)
+	return _u
+}
+
+// SetNillablePhysicalStock sets the "physical_stock" field if the given value is not nil.
+func (_u *ProductUpdateOne) SetNillablePhysicalStock(v *int64) *ProductUpdateOne {
+	if v != nil {
+		_u.SetPhysicalStock(*v)
+	}
+	return _u
+}
+
+// AddPhysicalStock adds value to the "physical_stock" field.
+func (_u *ProductUpdateOne) AddPhysicalStock(v int64) *ProductUpdateOne {
+	_u.mutation.AddPhysicalStock(v)
 	return _u
 }
 
@@ -2127,7 +2528,9 @@ func (_u *ProductUpdateOne) Select(field string, fields ...string) *ProductUpdat
 
 // Save executes the query and returns the updated Product entity.
 func (_u *ProductUpdateOne) Save(ctx context.Context) (*Product, error) {
-	_u.defaults()
+	if err := _u.defaults(); err != nil {
+		return nil, err
+	}
 	return withHooks(ctx, _u.sqlSave, _u.mutation, _u.hooks)
 }
 
@@ -2154,11 +2557,15 @@ func (_u *ProductUpdateOne) ExecX(ctx context.Context) {
 }
 
 // defaults sets the default values of the builder before save.
-func (_u *ProductUpdateOne) defaults() {
+func (_u *ProductUpdateOne) defaults() error {
 	if _, ok := _u.mutation.UpdatedAt(); !ok {
+		if product.UpdateDefaultUpdatedAt == nil {
+			return fmt.Errorf("ent: uninitialized product.UpdateDefaultUpdatedAt (forgotten import ent/runtime?)")
+		}
 		v := product.UpdateDefaultUpdatedAt()
 		_u.mutation.SetUpdatedAt(v)
 	}
+	return nil
 }
 
 // check runs all checks and user-defined validators on the builder.
@@ -2166,6 +2573,11 @@ func (_u *ProductUpdateOne) check() error {
 	if v, ok := _u.mutation.Name(); ok {
 		if err := product.NameValidator(v); err != nil {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "Product.name": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.ProductProperty(); ok {
+		if err := product.ProductPropertyValidator(v); err != nil {
+			return &ValidationError{Name: "product_property", err: fmt.Errorf(`ent: validator failed for field "Product.product_property": %w`, err)}
 		}
 	}
 	if v, ok := _u.mutation.Slug(); ok {
@@ -2244,6 +2656,18 @@ func (_u *ProductUpdateOne) sqlSave(ctx context.Context) (_node *Product, err er
 	if value, ok := _u.mutation.AddedSubsiteID(); ok {
 		_spec.AddField(product.FieldSubsiteID, field.TypeUint64, value)
 	}
+	if value, ok := _u.mutation.ProductKind(); ok {
+		_spec.SetField(product.FieldProductKind, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.DeliveryKind(); ok {
+		_spec.SetField(product.FieldDeliveryKind, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.SmsProduct(); ok {
+		_spec.SetField(product.FieldSmsProduct, field.TypeJSON, value)
+	}
+	if _u.mutation.SmsProductCleared() {
+		_spec.ClearField(product.FieldSmsProduct, field.TypeJSON)
+	}
 	if value, ok := _u.mutation.CategoryID(); ok {
 		_spec.SetField(product.FieldCategoryID, field.TypeUint64, value)
 	}
@@ -2258,6 +2682,44 @@ func (_u *ProductUpdateOne) sqlSave(ctx context.Context) (_node *Product, err er
 	}
 	if value, ok := _u.mutation.Name(); ok {
 		_spec.SetField(product.FieldName, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.GoodsType(); ok {
+		_spec.SetField(product.FieldGoodsType, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.ProductProperty(); ok {
+		_spec.SetField(product.FieldProductProperty, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.TrackInventory(); ok {
+		_spec.SetField(product.FieldTrackInventory, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.SalesVisible(); ok {
+		_spec.SetField(product.FieldSalesVisible, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.ShippingMode(); ok {
+		_spec.SetField(product.FieldShippingMode, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.ShippingFee(); ok {
+		_spec.SetField(product.FieldShippingFee, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedShippingFee(); ok {
+		_spec.AddField(product.FieldShippingFee, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.ShippingCountries(); ok {
+		_spec.SetField(product.FieldShippingCountries, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedShippingCountries(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, product.FieldShippingCountries, value)
+		})
+	}
+	if _u.mutation.ShippingCountriesCleared() {
+		_spec.ClearField(product.FieldShippingCountries, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.PhysicalStock(); ok {
+		_spec.SetField(product.FieldPhysicalStock, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedPhysicalStock(); ok {
+		_spec.AddField(product.FieldPhysicalStock, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.Slug(); ok {
 		_spec.SetField(product.FieldSlug, field.TypeString, value)

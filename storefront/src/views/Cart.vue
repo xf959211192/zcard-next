@@ -1,18 +1,18 @@
 <template>
   <div class="cart-page">
     <div v-if="cartSettingLoaded && !cartEnabled" class="cart-empty" role="status">
-      <p class="cart-empty-text">{{ cartSettingError || '购物车已关闭，请前往商品详情页直接购买' }}</p>
-      <button v-if="cartSettingError" class="btn secondary" :disabled="retrying" @click="retrySetting">{{ retrying ? '读取中…' : '重试' }}</button>
-      <router-link class="btn btn-primary" to="/products">浏览商品</router-link>
+      <p class="cart-empty-text">{{ cartSettingError || $t('购物车已关闭，请前往商品详情页直接购买') }}</p>
+      <button v-if="cartSettingError" class="btn secondary" :disabled="retrying" @click="retrySetting">{{ retrying ? $t('读取中…') : $t('重试') }}</button>
+      <router-link class="btn btn-primary" to="/products">{{ $t('浏览商品') }}</router-link>
     </div>
-    <div v-else-if="!loaded || !cartSettingLoaded" class="card" style="text-align: center;"><span class="muted">加载中…</span></div>
+    <div v-else-if="!loaded || !cartSettingLoaded" class="card" style="text-align: center;"><span class="muted">{{ $t('加载中…') }}</span></div>
 
     <template v-else>
       <!-- 空购物车 -->
       <div v-if="!items.length" class="cart-empty">
         <div class="cart-empty-icon"><ThemeIcon name="cart" /></div>
-        <div class="cart-empty-text">购物车还是空的</div>
-        <router-link class="btn btn-primary" to="/products">去逛逛</router-link>
+        <div class="cart-empty-text">{{ $t('购物车还是空的') }}</div>
+        <router-link class="btn btn-primary" to="/products">{{ $t('去逛逛') }}</router-link>
       </div>
 
       <template v-else>
@@ -20,10 +20,10 @@
         <div class="cart-toolbar">
           <label class="cart-check">
             <input type="checkbox" :checked="allSelected" @change="toggleAll" />
-            <span>全选</span>
-            <span class="muted">（有效 {{ validItems.length }} 项）</span>
+            <span>{{ $t('全选') }}</span>
+            <span class="muted">{{ $t('（有效') }} {{ validItems.length }} {{ $t('项）') }}</span>
           </label>
-          <span class="muted">失效/缺货商品不可结算</span>
+          <span class="muted">{{ $t('失效/缺货商品不可结算') }}</span>
         </div>
 
         <!-- 商品列表 -->
@@ -40,15 +40,15 @@
             <router-link v-if="it.valid" :to="`/product/${it.product_id}`" class="cart-item-name">{{ it.product_name }}</router-link>
             <span v-else class="cart-item-name">{{ it.product_name }}</span>
             <div class="cart-item-badges">
-              <span v-if="!it.valid" class="badge red">已失效</span>
-              <span v-else-if="(it.stock ?? 0) === 0 || it.stock < -1" class="badge orange">{{ it.stock < -1 ? '库存待确认' : '缺货' }}</span>
-              <span v-if="it.points_only" class="tag">积分商品</span>
+              <span v-if="!it.valid" class="badge red">{{ $t('已失效') }}</span>
+              <span v-else-if="(it.stock ?? 0) === 0 || it.stock < -1" class="badge orange">{{ it.stock < -1 ? $t('库存待确认') : $t('缺货') }}</span>
+              <span v-if="it.points_only" class="tag">{{ $t('积分商品') }}</span>
             </div>
-            <div class="cart-item-sku muted" v-if="it.sku_id">SKU #{{ it.sku_id }}</div>
+            <div class="cart-item-sku muted" v-if="it.sku_id">{{ skuNames[it.id] || $t('规格 #{0}', [it.sku_id]) }}</div>
           </div>
           <div class="cart-item-price">
-            <div class="cart-price">{{ formatMoney(flash.price(it.price_cents, it.flash_sale)) }}</div>
-            <div class="muted">单价</div>
+            <div class="cart-price">{{ formatMoney(itemPrice(it)) }}</div>
+            <div class="muted">{{ $t('单价') }}</div>
           </div>
           <div class="cart-item-qty">
             <button class="cart-qty-btn" :disabled="(it.stock ?? 0) === 0 || it.stock < -1" @click="changeQty(it, it.quantity - 1)">−</button>
@@ -57,52 +57,58 @@
             <button class="cart-qty-btn" :disabled="(it.stock ?? 0) === 0 || it.stock < -1 || it.quantity >= (it.max_quantity||99)" @click="changeQty(it, it.quantity + 1)">＋</button>
           </div>
           <div class="cart-item-subtotal">
-            <div class="cart-subtotal">{{ formatMoney(flash.price(it.price_cents, it.flash_sale) * it.quantity) }}</div>
-            <div class="muted">小计</div>
+            <div class="cart-subtotal">{{ formatMoney(itemPrice(it) * it.quantity) }}</div>
+            <div class="muted">{{ $t('小计') }}</div>
           </div>
-          <button class="cart-item-del" @click="remove(it.id)" title="删除">✕</button>
+          <button class="cart-item-del" @click="remove(it.id)" :title="$t('删除')">✕</button>
         </div>
 
         <!-- 结算栏（sticky） -->
         <div class="cart-checkout">
           <div class="cart-total">
-            <div class="muted">已选 <b>{{ selectedItems.length }}</b> 项</div>
+            <div class="muted">{{ $t('已选') }} <b>{{ selectedItems.length }}</b> {{ $t('项') }}</div>
             <div class="cart-total-row">
-              <span class="muted">合计：</span>
+              <span class="muted">{{ $t('合计：') }}</span>
               <span class="cart-total-price">{{ formatMoney(rawTotal) }}</span>
             </div>
-            <div class="muted">券/会员折扣在下单时结算</div>
+            <div class="muted">{{ $t('优惠与实体运费将在结算时核算') }}</div>
           </div>
           <div class="cart-checkout-fields">
-            <input v-model="queryPwd" type="text" class="input" :placeholder="trade.queryPasswordRequired ? '查询密码 *（取货用，≥4 位）' : '查询密码（取货用，≥4 位）'" style="max-width: 170px;" />
-            <input v-if="(isGuestCart || trade.contactScope === 'all') && trade.contactRequired !== 'none'" v-model="contact" type="text" class="input" :placeholder="`联系方式 *（${contactRequiredLabel(trade.contactRequired)}）`" style="max-width: 170px;" />
-            <input v-model="couponCode" type="text" class="input" placeholder="优惠券码（选填）" style="max-width: 150px;" />
+            <input v-if="!physicalOnly" v-model="queryPwd" type="text" class="input" :placeholder="trade.queryPasswordRequired ? $t('查询密码 *（取货用，≥4 位）') : $t('查询密码（取货用，≥4 位）')" style="max-width: 170px;" />
+            <input v-if="physicalOnly && isGuestCart" v-model="contact" type="email" autocomplete="email" class="input" :placeholder="$t('邮箱（订单通知与找回）')" />
+            <input v-if="!physicalOnly && (isGuestCart || trade.contactScope === 'all') && trade.contactRequired !== 'none'" v-model="contact" type="text" class="input" :placeholder="$t('联系方式 *（{0}）', [contactRequiredLabel(trade.contactRequired)])" style="max-width: 170px;" />
+            <input v-model="couponCode" type="text" class="input" :placeholder="$t('优惠券码（选填）')" style="max-width: 150px;" />
             <template v-if="isGuestCart && captchaCfg.order">
               <CaptchaInput ref="captchaRef" @update:code="captchaCode = $event" @update:captcha-id="captchaId = $event" />
             </template>
             <button class="btn btn-primary cart-checkout-btn" :disabled="!selectedItems.length || checkingOut" @click="checkout">
-              {{ checkingOut ? '结算中…' : `去结算（${selectedItems.length}）` }}
+              {{ checkingOut ? $t('结算中…') : $t('去结算（{0}）', [selectedItems.length]) }}
             </button>
           </div>
         </div>
 
         <!-- 必填控件收集 -->
         <div v-if="controlsNeeded.length && showControls" class="cart-controls">
-          <h3 class="cart-controls-title">核对下单资料</h3>
+          <h3 class="cart-controls-title">{{ $t('核对下单资料') }}</h3>
           <div v-for="g in controlsNeeded" :key="g.key" class="cart-controls-group">
             <div class="cart-controls-name">{{ g.name }}</div>
             <OrderFields :controls="g.controls" v-model="controlAnswers[g.key]" :prefix="g.key" />
           </div>
           <button class="btn btn-primary" style="margin-top: 8px;" :disabled="!controlsComplete || checkingOut" @click="doCheckout">
-            {{ checkingOut ? '提交中…' : '确认并下单' }}
+            {{ checkingOut ? $t('提交中…') : $t('确认并下单') }}
           </button>
         </div>
       </template>
     </template>
   </div>
+ <ShippingCheckout ref="shippingCheckout" />
 </template>
 
 <script setup lang="ts">
+import { t as $t } from '@/i18n';
+
+import ShippingCheckout from "@/components/ShippingCheckout.vue";
+const shippingCheckout=ref<InstanceType<typeof ShippingCheckout>>();
 import OrderFields from '@/components/OrderFields.vue';
 import { useFlashOffers } from '@/composables/flash-offers';
 const flash=useFlashOffers();
@@ -116,9 +122,11 @@ import { NO_IMAGE, onImgError } from '@/no-image';
 import { getRefCode } from '@/ref';
 import { fetchCaptchaConfig, type CaptchaConfig } from '@/api';
 import CaptchaInput from '@/components/CaptchaInput.vue';
+import { cartPriceCents } from '@/utils/commerce';
 
 const router = useRouter();
 const items = ref<CartItem[]>([]);
+const skuNames = ref<Record<number, string>>({});
 const selected = ref<number[]>([]);
 const loaded = ref(false);
 const retrying = ref(false);
@@ -144,7 +152,10 @@ const controlsNeeded = ref<{ productId: number; key: string; name: string; contr
 const validItems = computed(() => items.value.filter((i) => i.valid && !(flash.active(i.flash_sale) && (i.flash_sale?.remaining || 0) <= 0) && (i.stock ?? 0) !== 0 && i.stock >= -1));
 const allSelected = computed(() => validItems.value.length > 0 && selected.value.length === validItems.value.length);
 const selectedItems = computed(() => validItems.value.filter((i) => selected.value.includes(i.id)));
-const rawTotal = computed(() => selectedItems.value.reduce((s, i) => s + flash.price(i.price_cents, i.flash_sale) * i.quantity, 0));
+const productProperties = ref<Record<number,string>>({});
+const physicalOnly = computed(() => selectedItems.value.length > 0 && selectedItems.value.every(i => productProperties.value[i.product_id] === 'physical'));
+function itemPrice(item: CartItem) { return flash.price(cartPriceCents(item.price_cents), item.flash_sale); }
+const rawTotal = computed(() => selectedItems.value.reduce((s, i) => s + itemPrice(i) * i.quantity, 0));
 const controlsComplete = computed(() =>
   controlsNeeded.value.every((g) => g.controls.every((c) => !c.required || (controlAnswers.value[g.key]?.[String(c.id)] || '').trim() !== ''))
 );
@@ -161,6 +172,12 @@ async function load() {
   items.value = list || [];
   isGuestCart.value = isGuest;
   selected.value = validItems.value.map((i) => i.id);
+  const productIds = [...new Set(items.value.map(i => i.product_id))];
+  const details = new Map(await Promise.all(productIds.map(async id => [id, (await getProduct(id)).data] as const)));
+  productProperties.value=Object.fromEntries([...details].map(([id,p])=>[id,p?.product_property || p?.goods_type || 'virtual']));
+  skuNames.value = Object.fromEntries(items.value.filter(i => i.sku_id).map(i => [
+    i.id, details.get(i.product_id)?.skus?.find(s => Number(s.id) === Number(i.sku_id))?.name || '',
+  ]));
   loaded.value = true;
 }
 
@@ -193,17 +210,18 @@ async function remove(id: number) {
 async function checkout() {
   if (!(await refreshCartSetting(true))) return;
   // 交易设置校验（与后端同口径：查询密码强制 + 游客联系方式）
-  if (trade.value.queryPasswordRequired && queryPwd.value.trim().length < 4) {
-    alert('请设置查询密码（取货用，至少 4 位）');
+  if (!physicalOnly.value && trade.value.queryPasswordRequired && queryPwd.value.trim().length < 4) {
+    alert($t("请设置查询密码（取货用，至少 4 位）"));
     return;
   }
-  if ((isGuestCart.value || trade.value.contactScope === 'all') && trade.value.contactRequired !== 'none') {
+  if (physicalOnly.value && isGuestCart.value && !contactValid(contact.value.trim(), 'email')) { alert($t('请填写有效邮箱，用于订单通知与找回')); return; }
+  if (!physicalOnly.value && (isGuestCart.value || trade.value.contactScope === 'all') && trade.value.contactRequired !== 'none') {
     if (!contact.value.trim()) {
-      alert(`请填写联系方式（${contactRequiredLabel(trade.value.contactRequired)}），用于订单查询与售后`);
+      alert($t("请填写联系方式（{0}），用于订单查询与售后", [contactRequiredLabel(trade.value.contactRequired)]));
       return;
     }
     if (!contactValid(contact.value, trade.value.contactRequired)) {
-      alert(`联系方式格式不符（需要${contactRequiredLabel(trade.value.contactRequired)}）`);
+      alert($t("联系方式格式不符（需要{0}）", [contactRequiredLabel(trade.value.contactRequired)]));
       return;
     }
   }
@@ -211,9 +229,11 @@ async function checkout() {
   controlsNeeded.value = [];
   controlAnswers.value = {};
   const needed: typeof controlsNeeded.value = [];
+  checkoutCountries.value=null;
   for (const it of selectedItems.value) {
     const { data: p } = await getProduct(it.product_id);
-    if (!p) { alert('读取商品填写信息失败，请重试'); return; }
+    if (!p) { alert($t("读取商品填写信息失败，请重试")); return; }
+ if((p.product_property || p.goods_type)==='physical'){const current:string[]|null=checkoutCountries.value;checkoutCountries.value=current===null?[...(p.shipping_countries || [])]:(current as string[]).filter((c:string)=>(p.shipping_countries || []).includes(c))}
  const req = p.controls || [];
  const key = `${it.product_id}:${it.sku_id || 0}`; controlAnswers.value[key] = {};
     if (req.length) needed.push({ productId: it.product_id, key, name: `${p.name} ${p.skus?.find(s => Number(s.id) === Number(it.sku_id))?.name || ""}`, controls: req });
@@ -226,29 +246,44 @@ async function checkout() {
   await doCheckout();
 }
 
+const checkoutCountries=ref<string[]|null>(null);
 async function doCheckout() {
   if (checkingOut.value) return;
   checkingOut.value = true;
-  if (!(await refreshCartSetting(true))) { checkingOut.value = false; return; }
-  const { data, error } = await createOrder({
-    items: selectedItems.value.map((i) => ({ product_id: i.product_id, sku_id: i.sku_id || undefined, quantity: i.quantity, control_answers:controlAnswers.value[`${i.product_id}:${i.sku_id || 0}`] })),
-    coupon_code: couponCode.value || undefined,
-    query_password: queryPwd.value,
-    ref_code: getRefCode() || undefined,
-    captcha_id: (isGuestCart.value && captchaCfg.value.order) ? captchaId.value : undefined,
-    captcha_code: (isGuestCart.value && captchaCfg.value.order) ? captchaCode.value : undefined,
-    contact: contact.value.trim() || undefined,
-  });
-  checkingOut.value = false;
-  if (error || !data) {
-    alert(error || '下单失败');
-    await load();
-    return;
+  try {
+    if (!(await refreshCartSetting(true))) return;
+    if (!physicalOnly.value && checkoutCountries.value !== null && isGuestCart.value && queryPwd.value.trim().length < 4) {
+      alert($t("游客购买实体商品须设置至少4位查询密码"));
+      return;
+    }
+    const purchasedIds = selectedItems.value.map(i => i.id);
+    const input = {
+      items: selectedItems.value.map((i) => ({ product_id: i.product_id, sku_id: i.sku_id || undefined, quantity: i.quantity, control_answers:controlAnswers.value[`${i.product_id}:${i.sku_id || 0}`] })),
+      coupon_code: couponCode.value || undefined,
+      query_password: physicalOnly.value ? undefined : queryPwd.value,
+      ref_code: getRefCode() || undefined,
+      captcha_id: (isGuestCart.value && captchaCfg.value.order) ? captchaId.value : undefined,
+      captcha_code: (isGuestCart.value && captchaCfg.value.order) ? captchaCode.value : undefined,
+      contact: contact.value.trim() || undefined,
+    };
+    const { data, error } = checkoutCountries.value !== null
+      ? { data: await shippingCheckout.value!.open(input, checkoutCountries.value), error: null }
+      : await createOrder(input);
+    if (!data && !error) return;
+    if (error || !data) {
+      alert(error || $t("下单失败"));
+      await load();
+      return;
+    }
+    // 下单成功后移除本次提交的商品，避免等待期间选择变化删掉其他商品。
+    await clearPurchased(purchasedIds);
+    rememberOrderPassword(data.order_no, queryPwd.value); // 支付成功自动取货用
+    router.push(`/payment/${data.order_no}`);
+  } catch (cause) {
+    alert(cause instanceof Error ? cause.message : $t("下单失败，请重试"));
+  } finally {
+    checkingOut.value = false;
   }
-  // 下单成功后移除已结算项（游客清本地 / 登录删后端）
-  await clearPurchased(selectedItems.value.map((i) => i.id));
-  rememberOrderPassword(data.order_no, queryPwd.value); // 支付成功自动取货用
-  router.push(`/payment/${data.order_no}`);
 }
 
 // 查询密码（多商品合并单共用一个取货密码；结算栏输入）
@@ -297,7 +332,7 @@ const queryPwd = ref('');
 }
 .cart-item-name:hover { color: var(--zc-primary); }
 .cart-item-badges { display: flex; gap: 6px; margin-top: 4px; }
-.cart-item-sku { margin-top: 2px; }
+.cart-item-sku { margin-top: 2px; overflow-wrap: anywhere; }
 .cart-item-price, .cart-item-subtotal { text-align: center; width: 76px; flex-shrink: 0; }
 .cart-price { color: #ff5722; font-weight: 700; font-size: 14px; }
 .cart-subtotal { font-weight: 700; font-size: 14px; color: #111827; }

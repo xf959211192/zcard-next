@@ -23,6 +23,11 @@ const OperationStoreOrderServiceCreateOrder = "/zcard.api.storefront.v1.StoreOrd
 const OperationStoreOrderServiceGetOrder = "/zcard.api.storefront.v1.StoreOrderService/GetOrder"
 const OperationStoreOrderServiceListGuestOrders = "/zcard.api.storefront.v1.StoreOrderService/ListGuestOrders"
 const OperationStoreOrderServiceListMyOrders = "/zcard.api.storefront.v1.StoreOrderService/ListMyOrders"
+const OperationStoreOrderServiceQuoteOrder = "/zcard.api.storefront.v1.StoreOrderService/QuoteOrder"
+const OperationStoreOrderServiceReceiveShipment = "/zcard.api.storefront.v1.StoreOrderService/ReceiveShipment"
+const OperationStoreOrderServiceRecoverOrderAccess = "/zcard.api.storefront.v1.StoreOrderService/RecoverOrderAccess"
+const OperationStoreOrderServiceSendOrderAccessCode = "/zcard.api.storefront.v1.StoreOrderService/SendOrderAccessCode"
+const OperationStoreOrderServiceShippingRegions = "/zcard.api.storefront.v1.StoreOrderService/ShippingRegions"
 
 type StoreOrderServiceHTTPServer interface {
 	// CancelMyOrder CancelMyOrder 取消本人待支付订单（pending 可取消；锁卡释放+返券）。
@@ -36,15 +41,129 @@ type StoreOrderServiceHTTPServer interface {
 	ListGuestOrders(context.Context, *ListGuestOrdersRequest) (*ListGuestOrdersReply, error)
 	// ListMyOrders ListMyOrders 我的订单（登录态；offset 分页）。
 	ListMyOrders(context.Context, *ListMyOrdersRequest) (*ListMyOrdersReply, error)
+	QuoteOrder(context.Context, *CreateOrderRequest) (*CreateOrderReply, error)
+	ReceiveShipment(context.Context, *ReceiveShipmentRequest) (*emptypb.Empty, error)
+	RecoverOrderAccess(context.Context, *OrderAccessRecoveryRequest) (*OrderAccessReply, error)
+	SendOrderAccessCode(context.Context, *OrderAccessCodeRequest) (*emptypb.Empty, error)
+	ShippingRegions(context.Context, *ShippingRegionsRequest) (*ShippingRegionsReply, error)
 }
 
 func RegisterStoreOrderServiceHTTPServer(s *http.Server, srv StoreOrderServiceHTTPServer) {
 	r := s.Route("/")
+	r.Handle("POST", "/api/v1/storefront/orders/{order_no}/access-code", _StoreOrderService_SendOrderAccessCode0_HTTP_Handler(srv))
+	r.Handle("POST", "/api/v1/storefront/orders/{order_no}/access-recover", _StoreOrderService_RecoverOrderAccess0_HTTP_Handler(srv))
+	r.Handle("POST", "/api/v1/storefront/orders/quote", _StoreOrderService_QuoteOrder0_HTTP_Handler(srv))
+	r.Handle("GET", "/api/v1/storefront/shipping/regions", _StoreOrderService_ShippingRegions0_HTTP_Handler(srv))
+	r.Handle("POST", "/api/v1/storefront/orders/{order_no}/receive", _StoreOrderService_ReceiveShipment0_HTTP_Handler(srv))
 	r.Handle("POST", "/api/v1/storefront/orders", _StoreOrderService_CreateOrder0_HTTP_Handler(srv))
 	r.Handle("GET", "/api/v1/storefront/orders/{order_no}", _StoreOrderService_GetOrder0_HTTP_Handler(srv))
 	r.Handle("GET", "/api/v1/storefront/my-orders", _StoreOrderService_ListMyOrders0_HTTP_Handler(srv))
 	r.Handle("GET", "/api/v1/storefront/guest-orders", _StoreOrderService_ListGuestOrders0_HTTP_Handler(srv))
 	r.Handle("POST", "/api/v1/storefront/orders/{order_no}/cancel", _StoreOrderService_CancelMyOrder0_HTTP_Handler(srv))
+}
+
+func _StoreOrderService_SendOrderAccessCode0_HTTP_Handler(srv StoreOrderServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in OrderAccessCodeRequest
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationStoreOrderServiceSendOrderAccessCode)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.SendOrderAccessCode(ctx, req.(*OrderAccessCodeRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*emptypb.Empty)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _StoreOrderService_RecoverOrderAccess0_HTTP_Handler(srv StoreOrderServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in OrderAccessRecoveryRequest
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationStoreOrderServiceRecoverOrderAccess)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.RecoverOrderAccess(ctx, req.(*OrderAccessRecoveryRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*OrderAccessReply)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _StoreOrderService_QuoteOrder0_HTTP_Handler(srv StoreOrderServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in CreateOrderRequest
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationStoreOrderServiceQuoteOrder)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.QuoteOrder(ctx, req.(*CreateOrderRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*CreateOrderReply)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _StoreOrderService_ShippingRegions0_HTTP_Handler(srv StoreOrderServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in ShippingRegionsRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationStoreOrderServiceShippingRegions)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.ShippingRegions(ctx, req.(*ShippingRegionsRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*ShippingRegionsReply)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _StoreOrderService_ReceiveShipment0_HTTP_Handler(srv StoreOrderServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in ReceiveShipmentRequest
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationStoreOrderServiceReceiveShipment)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.ReceiveShipment(ctx, req.(*ReceiveShipmentRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*emptypb.Empty)
+		return ctx.Result(200, reply)
+	}
 }
 
 func _StoreOrderService_CreateOrder0_HTTP_Handler(srv StoreOrderServiceHTTPServer) func(ctx http.Context) error {
@@ -160,6 +279,11 @@ type StoreOrderServiceHTTPClient interface {
 	ListGuestOrders(ctx context.Context, req *ListGuestOrdersRequest, opts ...http.CallOption) (rsp *ListGuestOrdersReply, err error)
 	// ListMyOrders ListMyOrders 我的订单（登录态；offset 分页）。
 	ListMyOrders(ctx context.Context, req *ListMyOrdersRequest, opts ...http.CallOption) (rsp *ListMyOrdersReply, err error)
+	QuoteOrder(ctx context.Context, req *CreateOrderRequest, opts ...http.CallOption) (rsp *CreateOrderReply, err error)
+	ReceiveShipment(ctx context.Context, req *ReceiveShipmentRequest, opts ...http.CallOption) (rsp *emptypb.Empty, err error)
+	RecoverOrderAccess(ctx context.Context, req *OrderAccessRecoveryRequest, opts ...http.CallOption) (rsp *OrderAccessReply, err error)
+	SendOrderAccessCode(ctx context.Context, req *OrderAccessCodeRequest, opts ...http.CallOption) (rsp *emptypb.Empty, err error)
+	ShippingRegions(ctx context.Context, req *ShippingRegionsRequest, opts ...http.CallOption) (rsp *ShippingRegionsReply, err error)
 }
 
 type StoreOrderServiceHTTPClientImpl struct {
@@ -249,6 +373,236 @@ func (c *StoreOrderServiceHTTPClientImpl) ListMyOrders(ctx context.Context, in *
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
 		http.Operation(OperationStoreOrderServiceListMyOrders),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *StoreOrderServiceHTTPClientImpl) QuoteOrder(ctx context.Context, in *CreateOrderRequest, opts ...http.CallOption) (*CreateOrderReply, error) {
+	var out CreateOrderReply
+	pattern := "/api/v1/storefront/orders/quote"
+	path := http.BuildPath(pattern, in)
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.ContentType("application/protojson"),
+		http.Operation(OperationStoreOrderServiceQuoteOrder),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *StoreOrderServiceHTTPClientImpl) ReceiveShipment(ctx context.Context, in *ReceiveShipmentRequest, opts ...http.CallOption) (*emptypb.Empty, error) {
+	var out emptypb.Empty
+	pattern := "/api/v1/storefront/orders/{order_no}/receive"
+	path := http.BuildPath(pattern, in)
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.ContentType("application/protojson"),
+		http.Operation(OperationStoreOrderServiceReceiveShipment),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *StoreOrderServiceHTTPClientImpl) RecoverOrderAccess(ctx context.Context, in *OrderAccessRecoveryRequest, opts ...http.CallOption) (*OrderAccessReply, error) {
+	var out OrderAccessReply
+	pattern := "/api/v1/storefront/orders/{order_no}/access-recover"
+	path := http.BuildPath(pattern, in)
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.ContentType("application/protojson"),
+		http.Operation(OperationStoreOrderServiceRecoverOrderAccess),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *StoreOrderServiceHTTPClientImpl) SendOrderAccessCode(ctx context.Context, in *OrderAccessCodeRequest, opts ...http.CallOption) (*emptypb.Empty, error) {
+	var out emptypb.Empty
+	pattern := "/api/v1/storefront/orders/{order_no}/access-code"
+	path := http.BuildPath(pattern, in)
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.ContentType("application/protojson"),
+		http.Operation(OperationStoreOrderServiceSendOrderAccessCode),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *StoreOrderServiceHTTPClientImpl) ShippingRegions(ctx context.Context, in *ShippingRegionsRequest, opts ...http.CallOption) (*ShippingRegionsReply, error) {
+	var out ShippingRegionsReply
+	pattern := "/api/v1/storefront/shipping/regions"
+	path := http.BuildPath(pattern, in, http.WithQueryParams())
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.Operation(OperationStoreOrderServiceShippingRegions),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+const OperationStoreSMSServiceActSMS = "/zcard.api.storefront.v1.StoreSMSService/ActSMS"
+const OperationStoreSMSServiceGetSMS = "/zcard.api.storefront.v1.StoreSMSService/GetSMS"
+const OperationStoreSMSServiceListSMSProduct = "/zcard.api.storefront.v1.StoreSMSService/ListSMSProduct"
+
+type StoreSMSServiceHTTPServer interface {
+	ActSMS(context.Context, *SMSActionRequest) (*SMSOrderReply, error)
+	GetSMS(context.Context, *SMSOrderRequest) (*SMSOrderReply, error)
+	ListSMSProduct(context.Context, *SMSProductHistoryRequest) (*SMSProductHistoryReply, error)
+}
+
+func RegisterStoreSMSServiceHTTPServer(s *http.Server, srv StoreSMSServiceHTTPServer) {
+	r := s.Route("/")
+	r.Handle("GET", "/api/v1/storefront/products/{product_id}/sms/sessions", _StoreSMSService_ListSMSProduct0_HTTP_Handler(srv))
+	r.Handle("GET", "/api/v1/storefront/orders/{order_no}/sms", _StoreSMSService_GetSMS0_HTTP_Handler(srv))
+	r.Handle("POST", "/api/v1/storefront/orders/{order_no}/sms/{action}", _StoreSMSService_ActSMS0_HTTP_Handler(srv))
+}
+
+func _StoreSMSService_ListSMSProduct0_HTTP_Handler(srv StoreSMSServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in SMSProductHistoryRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationStoreSMSServiceListSMSProduct)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.ListSMSProduct(ctx, req.(*SMSProductHistoryRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*SMSProductHistoryReply)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _StoreSMSService_GetSMS0_HTTP_Handler(srv StoreSMSServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in SMSOrderRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationStoreSMSServiceGetSMS)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.GetSMS(ctx, req.(*SMSOrderRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*SMSOrderReply)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _StoreSMSService_ActSMS0_HTTP_Handler(srv StoreSMSServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in SMSActionRequest
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationStoreSMSServiceActSMS)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.ActSMS(ctx, req.(*SMSActionRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*SMSOrderReply)
+		return ctx.Result(200, reply)
+	}
+}
+
+type StoreSMSServiceHTTPClient interface {
+	ActSMS(ctx context.Context, req *SMSActionRequest, opts ...http.CallOption) (rsp *SMSOrderReply, err error)
+	GetSMS(ctx context.Context, req *SMSOrderRequest, opts ...http.CallOption) (rsp *SMSOrderReply, err error)
+	ListSMSProduct(ctx context.Context, req *SMSProductHistoryRequest, opts ...http.CallOption) (rsp *SMSProductHistoryReply, err error)
+}
+
+type StoreSMSServiceHTTPClientImpl struct {
+	cc *http.Client
+}
+
+func NewStoreSMSServiceHTTPClient(client *http.Client) StoreSMSServiceHTTPClient {
+	return &StoreSMSServiceHTTPClientImpl{client}
+}
+
+func (c *StoreSMSServiceHTTPClientImpl) ActSMS(ctx context.Context, in *SMSActionRequest, opts ...http.CallOption) (*SMSOrderReply, error) {
+	var out SMSOrderReply
+	pattern := "/api/v1/storefront/orders/{order_no}/sms/{action}"
+	path := http.BuildPath(pattern, in)
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.ContentType("application/protojson"),
+		http.Operation(OperationStoreSMSServiceActSMS),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *StoreSMSServiceHTTPClientImpl) GetSMS(ctx context.Context, in *SMSOrderRequest, opts ...http.CallOption) (*SMSOrderReply, error) {
+	var out SMSOrderReply
+	pattern := "/api/v1/storefront/orders/{order_no}/sms"
+	path := http.BuildPath(pattern, in, http.WithQueryParams())
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.Operation(OperationStoreSMSServiceGetSMS),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *StoreSMSServiceHTTPClientImpl) ListSMSProduct(ctx context.Context, in *SMSProductHistoryRequest, opts ...http.CallOption) (*SMSProductHistoryReply, error) {
+	var out SMSProductHistoryReply
+	pattern := "/api/v1/storefront/products/{product_id}/sms/sessions"
+	path := http.BuildPath(pattern, in, http.WithQueryParams())
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.Operation(OperationStoreSMSServiceListSMSProduct),
 		http.PathTemplate(pattern),
 	}, opts...)
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)

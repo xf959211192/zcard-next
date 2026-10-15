@@ -111,7 +111,7 @@ type SyncService struct {
 	outbox              events.Writer // sync.completed 发布
 	log                 *slog.Logger
 
-	// 封面采集去重缓存（url → 本地 /uploads/ 路径或完整上游 URL；mutex 保护并发任务）
+	// 上游图片采集去重缓存（目录+绝对 URL → 本地 /uploads/ 路径；仅缓存成功下载）。
 	coverMu    sync.Mutex
 	coverCache map[string]string
 	coverDirs  map[uint64]string // connectionID → 渠道封面目录名（ensureCoverDir 缓存）
@@ -372,6 +372,9 @@ func (s *SyncService) runLoop(ctx context.Context, taskID uint64, task *ent.Supp
 					return e
 				}
 				p := list0.Items[i]
+				if p.ProductKind == "sms_channel" {
+					continue // Stock belongs to each offer, never to the channel product.
+				}
 				stockTotal++
 				if p.Stock < -1 {
 					stockFailed++
@@ -513,6 +516,11 @@ func (s *SyncService) syncOne(ctx context.Context, taskID uint64, task *ent.Supp
 		if p.IsActive {
 			cover = s.coverFor(ctx, m, conn, p.Cover)
 		}
+		mediaCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+		prepared := *p
+		prepared.Description = s.descriptionFor(mediaCtx, m, conn, p.Description)
+		cancel()
+		p = &prepared
 	}
 	next := *stats
 	canceled := false
@@ -595,6 +603,7 @@ func (s *SyncService) syncOneLocked(ctx context.Context, taskID uint64, task *en
 
 	// upsert 本地商品（价格 -1 = 不更新）
 	write := catalogport.UpstreamProductInput{
+		ProductKind: p.ProductKind, DeliveryKind: p.DeliveryKind, SMSProduct: p.SMSProduct,
 		ConnectionID:        conn.ID,
 		UpstreamProductCode: p.ID,
 		UpstreamSyncedAt:    time.Now().UTC(),
@@ -776,6 +785,10 @@ func stockObservationTime(p *adapter.Product) time.Time {
 func (s *SyncService) backfillStocks(ctx context.Context, a adapter.Adapter, cfg scheduleSettings, items []adapter.Product, taskID uint64) error {
 	var missing []int
 	for i := range items {
+		if items[i].ProductKind == "sms_channel" {
+			items[i].Stock = -2
+			continue
+		}
 		// ACG 的目录库存由调用方先标为未知；其他协议明确的 0/-1 保持原语义。
 		if items[i].Stock < -1 {
 			missing = append(missing, i)
@@ -1038,18 +1051,25 @@ func (s *SyncService) ImportOne(ctx context.Context, conn *ent.SupplyConnection,
 }
 
 type importCheckpoint struct {
-	categoryID *uint64
-	before     func(context.Context) error
-	after      func(context.Context, uint64, bool) error
-	holdStock  bool
-	cover      string
+	categoryID  *uint64
+	before      func(context.Context) error
+	after       func(context.Context, uint64, bool) error
+	holdStock   bool
+	cover       string
+	description string
 }
 
 func (s *SyncService) importOne(ctx context.Context, conn *ent.SupplyConnection, p *adapter.Product, categoryMap map[string]uint64, mode string, markupPercent float64, markupAmount int64, checkpoint *importCheckpoint) (bool, error) {
 	rule := productPricingRule{Mode: mode, Percent: markupPercent, Amount: markupAmount}
 	importPrice := func(upstream int64) int64 { return rule.price(conn, upstream) }
 	price := importPrice(p.Price)
-	if p.IsActive && mode != PriceModePending && (p.Price <= 0 || price <= 0) {
+	if p.ProductKind == "sms_channel" {
+		if conn.Driver != "zcard" || conn.ExchangeRate != 1 || len(p.SKUs) > 0 {
+			return false, fmt.Errorf("渠道接码商品须使用人民币 ZCard 连接且无 SKU")
+		}
+		price = 0
+	}
+	if p.ProductKind != "sms_channel" && p.IsActive && mode != PriceModePending && (p.Price <= 0 || price <= 0) {
 		return false, fmt.Errorf("商品 %s 报价无效，未导入", p.ID)
 	}
 	status := int8(1)
@@ -1067,11 +1087,12 @@ func (s *SyncService) importOne(ctx context.Context, conn *ent.SupplyConnection,
 		return false, merr
 	}
 	write := catalogport.UpstreamProductInput{
+		ProductKind: p.ProductKind, DeliveryKind: p.DeliveryKind, SMSProduct: p.SMSProduct,
 		ConnectionID:        conn.ID,
 		UpstreamProductCode: p.ID,
 		UpstreamSyncedAt:    time.Now().UTC(),
 		Name:                p.Name,
-		Description:         p.Description,
+		Description:         s.importDescription(ctx, mapping, conn, p.Description, checkpoint),
 		DescriptionSet:      p.DescriptionSet,
 		Cover:               s.importCover(ctx, mapping, conn, p.Cover, checkpoint), // 上游图采集落本地（fail-open；保留旧文件，避免共享引用失效）
 		FactoryPrice:        accountCost(conn, p),
@@ -1242,4 +1263,13 @@ func (s *SyncService) importCover(ctx context.Context, m *ent.SupplyMapping, con
 		return cp.cover
 	}
 	return s.coverFor(ctx, m, conn, url)
+}
+
+func (s *SyncService) importDescription(ctx context.Context, m *ent.SupplyMapping, conn *ent.SupplyConnection, description string, cp *importCheckpoint) string {
+	if cp != nil {
+		return cp.description
+	}
+	mediaCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	return s.descriptionFor(mediaCtx, m, conn, description)
 }

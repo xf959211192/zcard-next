@@ -47,6 +47,7 @@ func (d *Dispatcher) WithBrandResolver(r notifyport.BrandResolver) *Dispatcher {
 var defaultChannels = map[string][]string{
 	events.AdminMFAChanged: {"telegram"},
 	"order.paid":           {"email", "inbox"},
+	"order.shipped":        {"email", "inbox"},
 	"order.delivered":      {"email", "inbox"},
 	"order.completed":      {"inbox"},
 	"order.canceled":       {"email", "inbox"},
@@ -81,6 +82,10 @@ func (d *Dispatcher) HandleEvent(ctx context.Context, env events.Envelope) error
 	if err := json.Unmarshal(env.Payload, &payload); err != nil {
 		return fmt.Errorf("notify: 解析 %s 载荷失败: %w", env.Type, err)
 	}
+	// SMS results remain in the authenticated order view, never card delivery mail.
+	if env.Type == "order.delivered" && payload["delivery_kind"] == "sms_activation" {
+		return nil
+	}
 	// 白名单变量（事件载荷扁平化；值统一字符串化 + HTML escape 在渲染期）
 	vars := FlattenVars(payload)
 	// 品牌隔离 fail-closed：分站上下文邮件注入分站白标；
@@ -97,6 +102,10 @@ func (d *Dispatcher) HandleEvent(ctx context.Context, env events.Envelope) error
 		}
 	}
 	locale := "zh_CN"
+	templateEvent := env.Type
+	if env.Type == "order.delivered" && payload["goods_type"] == "physical" {
+		templateEvent = "order.received"
+	}
 
 	for _, ch := range channels {
 		channel, ok := d.channels[ch]
@@ -104,7 +113,7 @@ func (d *Dispatcher) HandleEvent(ctx context.Context, env events.Envelope) error
 			continue // 通道未注册（SMS/Telegram ）
 		}
 		// 模板（事件 × 通道 × 语言；无模板 → 该通道跳过——不算错误）
-		tpl, err := d.repo.Template(ctx, env.Type, ch, locale)
+		tpl, err := d.repo.Template(ctx, templateEvent, ch, locale)
 		if err != nil {
 			continue
 		}
@@ -202,7 +211,7 @@ func logOf(msg notifyport.Message, status, errMsg string) LogInput {
 	// 敏感类型（验证码邮件）：正文/变量不落日志——库内无明文纪律
 	// （邮件照发，仅审计留档脱敏；BizType 契约见调用方）
 	body, vars := msg.Body, msg.Variables
-	if msg.BizType == "password_reset" {
+	if msg.BizType == "password_reset" || msg.BizType == "order_access_recovery" || msg.BizType == "register_code" {
 		body = "[验证码邮件：内容不落日志]"
 		vars = map[string]string{"masked": "true"}
 	}

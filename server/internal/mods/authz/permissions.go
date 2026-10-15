@@ -257,6 +257,9 @@ func init() {
 		Perm{Code: "giftcard:read", Desc: "礼品卡批次列表", Domain: "wallet",
 			Op: "zcard.api.admin.v1.AdminWalletService/ListGiftcardBatches", Method: "GET", Path: "/api/v1/admin/wallet/giftcard-batches"},
 
+		Perm{Code: "order:deliver", Desc: "实体物流管理", Domain: "fulfillment", AdminOnly: true, Op: "zcard.api.admin.v1.AdminFulfillmentService/ShipOrder", Method: "POST", Path: "/api/v1/admin/fulfillment/{order_no}/ship"},
+		Perm{Code: "order:deliver", Desc: "实体物流管理", Domain: "fulfillment", AdminOnly: true, Op: "zcard.api.admin.v1.AdminFulfillmentService/UpdateShipping", Method: "POST", Path: "/api/v1/admin/fulfillment/{order_no}/shipping"},
+		Perm{Code: "order:deliver", Desc: "实体物流管理", Domain: "fulfillment", AdminOnly: true, Op: "zcard.api.admin.v1.AdminFulfillmentService/RestockReturn", Method: "POST", Path: "/api/v1/admin/fulfillment/{order_no}/restock"},
 		// ── 履约（fulfillment，）─────────────────
 		Perm{Code: "order:view_delivery", Desc: "查看交付记录", Domain: "fulfillment",
 			Op: "zcard.api.admin.v1.AdminFulfillmentService/ListDeliveries", Method: "GET", Path: "/api/v1/admin/fulfillment"},
@@ -373,6 +376,8 @@ func init() {
 			Op: "zcard.api.admin.v1.AdminSupplyService/ImportProducts", Method: "POST", Path: "/api/v1/admin/supply/connections/{connection_id}/import"},
 
 		// ── 采购（procurement，）────────────────
+		Perm{Code: "procurement:read", Desc: "接码任务诊断", Domain: "procurement", Op: "zcard.api.admin.v1.AdminProcurementService/ListSMS", Method: "GET", Path: "/api/v1/admin/sms-intents"},
+		Perm{Code: "procurement:write", Desc: "重试原接码任务", Domain: "procurement", AdminOnly: true, Op: "zcard.api.admin.v1.AdminProcurementService/RetrySMS", Method: "POST", Path: "/api/v1/admin/sms-intents/{id}/retry"},
 		Perm{Code: "procurement:read", Desc: "采购单列表", Domain: "procurement",
 			Op: "zcard.api.admin.v1.AdminProcurementService/ListProcurements", Method: "GET", Path: "/api/v1/admin/procurements"},
 		Perm{Code: "procurement:read", Desc: "采购单详情", Domain: "procurement",
@@ -541,6 +546,8 @@ func init() {
 		Perm{Code: "ticket:write", Desc: "关闭工单", Domain: "ticket",
 			Op: "zcard.api.admin.v1.AdminTicketService/CloseTicket", Method: "POST", Path: "/api/v1/admin/tickets/{ticket_no}/close"},
 
+		Perm{Code: "settings:update", Desc: "邮件测试发送", Domain: "settings",
+			Op: "zcard.api.admin.v1.AdminNotifyService/TestEmail", Method: "POST", Path: "/api/v1/admin/notify/email/test"},
 		Perm{Code: "notify:write", Desc: "Telegram 测试发送（超管）", Domain: "notify", AdminOnly: true,
 			Op: "zcard.api.admin.v1.AdminNotifyService/TestTelegram", Method: "POST", Path: "/api/v1/admin/notify/telegram/test"},
 		// ── 通知（notify，）────────────────────

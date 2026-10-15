@@ -100,6 +100,10 @@ type Tx struct {
 	Payment *PaymentClient
 	// PaymentChannel is the client for interacting with the PaymentChannel builders.
 	PaymentChannel *PaymentChannelClient
+	// PhysicalReturnReceipt is the client for interacting with the PhysicalReturnReceipt builders.
+	PhysicalReturnReceipt *PhysicalReturnReceiptClient
+	// PhysicalStockMovement is the client for interacting with the PhysicalStockMovement builders.
+	PhysicalStockMovement *PhysicalStockMovementClient
 	// PointAccount is the client for interacting with the PointAccount builders.
 	PointAccount *PointAccountClient
 	// PointTransaction is the client for interacting with the PointTransaction builders.
@@ -152,12 +156,20 @@ type Tx struct {
 	RiskLockKey *RiskLockKeyClient
 	// RolePermission is the client for interacting with the RolePermission builders.
 	RolePermission *RolePermissionClient
+	// SMSIntent is the client for interacting with the SMSIntent builders.
+	SMSIntent *SMSIntentClient
+	// SMSOperation is the client for interacting with the SMSOperation builders.
+	SMSOperation *SMSOperationClient
+	// SMSRetailQuote is the client for interacting with the SMSRetailQuote builders.
+	SMSRetailQuote *SMSRetailQuoteClient
 	// SecurityAuditLog is the client for interacting with the SecurityAuditLog builders.
 	SecurityAuditLog *SecurityAuditLogClient
 	// Session is the client for interacting with the Session builders.
 	Session *SessionClient
 	// Setting is the client for interacting with the Setting builders.
 	Setting *SettingClient
+	// Shipment is the client for interacting with the Shipment builders.
+	Shipment *ShipmentClient
 	// StockAlert is the client for interacting with the StockAlert builders.
 	StockAlert *StockAlertClient
 	// SupplierAccount is the client for interacting with the SupplierAccount builders.
@@ -379,6 +391,8 @@ func (tx *Tx) init() {
 	tx.PageView = NewPageViewClient(tx.config)
 	tx.Payment = NewPaymentClient(tx.config)
 	tx.PaymentChannel = NewPaymentChannelClient(tx.config)
+	tx.PhysicalReturnReceipt = NewPhysicalReturnReceiptClient(tx.config)
+	tx.PhysicalStockMovement = NewPhysicalStockMovementClient(tx.config)
 	tx.PointAccount = NewPointAccountClient(tx.config)
 	tx.PointTransaction = NewPointTransactionClient(tx.config)
 	tx.Post = NewPostClient(tx.config)
@@ -405,9 +419,13 @@ func (tx *Tx) init() {
 	tx.Review = NewReviewClient(tx.config)
 	tx.RiskLockKey = NewRiskLockKeyClient(tx.config)
 	tx.RolePermission = NewRolePermissionClient(tx.config)
+	tx.SMSIntent = NewSMSIntentClient(tx.config)
+	tx.SMSOperation = NewSMSOperationClient(tx.config)
+	tx.SMSRetailQuote = NewSMSRetailQuoteClient(tx.config)
 	tx.SecurityAuditLog = NewSecurityAuditLogClient(tx.config)
 	tx.Session = NewSessionClient(tx.config)
 	tx.Setting = NewSettingClient(tx.config)
+	tx.Shipment = NewShipmentClient(tx.config)
 	tx.StockAlert = NewStockAlertClient(tx.config)
 	tx.SupplierAccount = NewSupplierAccountClient(tx.config)
 	tx.SupplierLedgerEntry = NewSupplierLedgerEntryClient(tx.config)

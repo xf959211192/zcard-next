@@ -28,6 +28,12 @@ type catalogLoadError string
 func (e catalogLoadError) Error() string { return string(e) }
 
 type catalogPayload struct {
+	Page       int                        `json:"page,omitempty"`
+	PageSize   int                        `json:"page_size,omitempty"`
+	Total      int                        `json:"total,omitempty"`
+	HasMore    bool                       `json:"has_more,omitempty"`
+	Capability string                     `json:"capability,omitempty"`
+	Tree       []adapter.Category         `json:"tree,omitempty"`
 	Categories []*adminv1.PreviewCategory `json:"categories"`
 	Products   map[string]adapter.Product `json:"products"`
 }
@@ -69,6 +75,13 @@ func (s *AdminSupplyService) previewSnapshot(ctx context.Context, req *adminv1.P
 	}
 	result.SnapshotId, result.Status, result.ExpiresAt = row.Token, "ready", row.ExpiresAt
 	result.LoadedCount = int32(row.LoadedCount)
+	var payload catalogPayload
+	if json.Unmarshal(row.Payload, &payload) == nil && payload.Page > 0 {
+		result.Page = int32(payload.Page)
+		result.PageSize = int32(payload.PageSize)
+		result.Total = int32(payload.Total)
+		result.HasMore = payload.HasMore
+	}
 	return result, nil
 }
 func (s *AdminSupplyService) snapshotRow(ctx context.Context, conn *ent.SupplyConnection, token string) (*ent.SupplyCatalogSnapshot, error) {
@@ -121,9 +134,17 @@ func (s *AdminSupplyService) ensureCatalogSnapshot(ctx context.Context, connecti
 		}
 		tenant := tenancy.FromContext(ctx).SubsiteID
 		q := c.SupplyCatalogSnapshot.Query().Where(snap.ConnectionID(connectionID), snap.SubsiteID(tenant), snap.Identity(catalogIdentity(conn)), snap.ExpiresAtGT(time.Now().Unix()))
-		row, e := q.Order(ent.Desc(snap.FieldID)).First(ctx)
+		// Sort only IDs: large JSON payloads can exhaust MySQL's sort buffer.
+		id, e := q.Order(ent.Desc(snap.FieldID)).FirstID(ctx)
 		if e != nil && !ent.IsNotFound(e) {
 			return e
+		}
+		var row *ent.SupplyCatalogSnapshot
+		if e == nil {
+			row, e = c.SupplyCatalogSnapshot.Get(ctx, id)
+			if e != nil {
+				return e
+			}
 		}
 		// Explicit refresh retries failures; opening a failed job never creates an automatic retry loop.
 		if e == nil && ((row.Status == "pending" || row.Status == "loading") || (!refresh && (row.Status == "failed" || time.Since(row.CreatedAt) < 15*time.Minute))) {

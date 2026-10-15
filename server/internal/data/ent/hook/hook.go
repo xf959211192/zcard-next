@@ -537,6 +537,30 @@ func (f PaymentChannelFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Val
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PaymentChannelMutation", m)
 }
 
+// The PhysicalReturnReceiptFunc type is an adapter to allow the use of ordinary
+// function as PhysicalReturnReceipt mutator.
+type PhysicalReturnReceiptFunc func(context.Context, *ent.PhysicalReturnReceiptMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f PhysicalReturnReceiptFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.PhysicalReturnReceiptMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PhysicalReturnReceiptMutation", m)
+}
+
+// The PhysicalStockMovementFunc type is an adapter to allow the use of ordinary
+// function as PhysicalStockMovement mutator.
+type PhysicalStockMovementFunc func(context.Context, *ent.PhysicalStockMovementMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f PhysicalStockMovementFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.PhysicalStockMovementMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.PhysicalStockMovementMutation", m)
+}
+
 // The PointAccountFunc type is an adapter to allow the use of ordinary
 // function as PointAccount mutator.
 type PointAccountFunc func(context.Context, *ent.PointAccountMutation) (ent.Value, error)
@@ -849,6 +873,42 @@ func (f RolePermissionFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Val
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.RolePermissionMutation", m)
 }
 
+// The SMSIntentFunc type is an adapter to allow the use of ordinary
+// function as SMSIntent mutator.
+type SMSIntentFunc func(context.Context, *ent.SMSIntentMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f SMSIntentFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.SMSIntentMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SMSIntentMutation", m)
+}
+
+// The SMSOperationFunc type is an adapter to allow the use of ordinary
+// function as SMSOperation mutator.
+type SMSOperationFunc func(context.Context, *ent.SMSOperationMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f SMSOperationFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.SMSOperationMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SMSOperationMutation", m)
+}
+
+// The SMSRetailQuoteFunc type is an adapter to allow the use of ordinary
+// function as SMSRetailQuote mutator.
+type SMSRetailQuoteFunc func(context.Context, *ent.SMSRetailQuoteMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f SMSRetailQuoteFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.SMSRetailQuoteMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SMSRetailQuoteMutation", m)
+}
+
 // The SecurityAuditLogFunc type is an adapter to allow the use of ordinary
 // function as SecurityAuditLog mutator.
 type SecurityAuditLogFunc func(context.Context, *ent.SecurityAuditLogMutation) (ent.Value, error)
@@ -883,6 +943,18 @@ func (f SettingFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, err
 		return f(ctx, mv)
 	}
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.SettingMutation", m)
+}
+
+// The ShipmentFunc type is an adapter to allow the use of ordinary
+// function as Shipment mutator.
+type ShipmentFunc func(context.Context, *ent.ShipmentMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f ShipmentFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.ShipmentMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.ShipmentMutation", m)
 }
 
 // The StockAlertFunc type is an adapter to allow the use of ordinary

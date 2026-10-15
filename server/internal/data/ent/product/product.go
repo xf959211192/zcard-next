@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 )
@@ -21,12 +22,34 @@ const (
 	FieldUpdatedAt = "updated_at"
 	// FieldSubsiteID holds the string denoting the subsite_id field in the database.
 	FieldSubsiteID = "subsite_id"
+	// FieldProductKind holds the string denoting the product_kind field in the database.
+	FieldProductKind = "product_kind"
+	// FieldDeliveryKind holds the string denoting the delivery_kind field in the database.
+	FieldDeliveryKind = "delivery_kind"
+	// FieldSmsProduct holds the string denoting the sms_product field in the database.
+	FieldSmsProduct = "sms_product"
 	// FieldCategoryID holds the string denoting the category_id field in the database.
 	FieldCategoryID = "category_id"
 	// FieldCategoryProtected holds the string denoting the category_protected field in the database.
 	FieldCategoryProtected = "category_protected"
 	// FieldName holds the string denoting the name field in the database.
 	FieldName = "name"
+	// FieldGoodsType holds the string denoting the goods_type field in the database.
+	FieldGoodsType = "goods_type"
+	// FieldProductProperty holds the string denoting the product_property field in the database.
+	FieldProductProperty = "product_property"
+	// FieldTrackInventory holds the string denoting the track_inventory field in the database.
+	FieldTrackInventory = "track_inventory"
+	// FieldSalesVisible holds the string denoting the sales_visible field in the database.
+	FieldSalesVisible = "sales_visible"
+	// FieldShippingMode holds the string denoting the shipping_mode field in the database.
+	FieldShippingMode = "shipping_mode"
+	// FieldShippingFee holds the string denoting the shipping_fee field in the database.
+	FieldShippingFee = "shipping_fee"
+	// FieldShippingCountries holds the string denoting the shipping_countries field in the database.
+	FieldShippingCountries = "shipping_countries"
+	// FieldPhysicalStock holds the string denoting the physical_stock field in the database.
+	FieldPhysicalStock = "physical_stock"
 	// FieldSlug holds the string denoting the slug field in the database.
 	FieldSlug = "slug"
 	// FieldDescription holds the string denoting the description field in the database.
@@ -131,9 +154,20 @@ var Columns = []string{
 	FieldCreatedAt,
 	FieldUpdatedAt,
 	FieldSubsiteID,
+	FieldProductKind,
+	FieldDeliveryKind,
+	FieldSmsProduct,
 	FieldCategoryID,
 	FieldCategoryProtected,
 	FieldName,
+	FieldGoodsType,
+	FieldProductProperty,
+	FieldTrackInventory,
+	FieldSalesVisible,
+	FieldShippingMode,
+	FieldShippingFee,
+	FieldShippingCountries,
+	FieldPhysicalStock,
 	FieldSlug,
 	FieldDescription,
 	FieldCover,
@@ -184,7 +218,13 @@ func ValidColumn(column string) bool {
 	return false
 }
 
+// Note that the variables below are initialized by the runtime
+// package on the initialization of the application. Therefore,
+// it should be imported in the main as follows:
+//
+//	import _ "github.com/NovaWorks/zcard-next/server/internal/data/ent/runtime"
 var (
+	Hooks [1]ent.Hook
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultUpdatedAt holds the default value on creation for the "updated_at" field.
@@ -193,10 +233,30 @@ var (
 	UpdateDefaultUpdatedAt func() time.Time
 	// DefaultSubsiteID holds the default value on creation for the "subsite_id" field.
 	DefaultSubsiteID uint64
+	// DefaultProductKind holds the default value on creation for the "product_kind" field.
+	DefaultProductKind string
+	// DefaultDeliveryKind holds the default value on creation for the "delivery_kind" field.
+	DefaultDeliveryKind string
 	// DefaultCategoryProtected holds the default value on creation for the "category_protected" field.
 	DefaultCategoryProtected bool
 	// NameValidator is a validator for the "name" field. It is called by the builders before save.
 	NameValidator func(string) error
+	// DefaultGoodsType holds the default value on creation for the "goods_type" field.
+	DefaultGoodsType string
+	// DefaultProductProperty holds the default value on creation for the "product_property" field.
+	DefaultProductProperty string
+	// ProductPropertyValidator is a validator for the "product_property" field. It is called by the builders before save.
+	ProductPropertyValidator func(string) error
+	// DefaultTrackInventory holds the default value on creation for the "track_inventory" field.
+	DefaultTrackInventory bool
+	// DefaultSalesVisible holds the default value on creation for the "sales_visible" field.
+	DefaultSalesVisible bool
+	// DefaultShippingMode holds the default value on creation for the "shipping_mode" field.
+	DefaultShippingMode string
+	// DefaultShippingFee holds the default value on creation for the "shipping_fee" field.
+	DefaultShippingFee int64
+	// DefaultPhysicalStock holds the default value on creation for the "physical_stock" field.
+	DefaultPhysicalStock int64
 	// SlugValidator is a validator for the "slug" field. It is called by the builders before save.
 	SlugValidator func(string) error
 	// CoverValidator is a validator for the "cover" field. It is called by the builders before save.
@@ -335,6 +395,16 @@ func BySubsiteID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldSubsiteID, opts...).ToFunc()
 }
 
+// ByProductKind orders the results by the product_kind field.
+func ByProductKind(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldProductKind, opts...).ToFunc()
+}
+
+// ByDeliveryKind orders the results by the delivery_kind field.
+func ByDeliveryKind(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDeliveryKind, opts...).ToFunc()
+}
+
 // ByCategoryID orders the results by the category_id field.
 func ByCategoryID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldCategoryID, opts...).ToFunc()
@@ -348,6 +418,41 @@ func ByCategoryProtected(opts ...sql.OrderTermOption) OrderOption {
 // ByName orders the results by the name field.
 func ByName(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldName, opts...).ToFunc()
+}
+
+// ByGoodsType orders the results by the goods_type field.
+func ByGoodsType(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldGoodsType, opts...).ToFunc()
+}
+
+// ByProductProperty orders the results by the product_property field.
+func ByProductProperty(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldProductProperty, opts...).ToFunc()
+}
+
+// ByTrackInventory orders the results by the track_inventory field.
+func ByTrackInventory(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldTrackInventory, opts...).ToFunc()
+}
+
+// BySalesVisible orders the results by the sales_visible field.
+func BySalesVisible(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSalesVisible, opts...).ToFunc()
+}
+
+// ByShippingMode orders the results by the shipping_mode field.
+func ByShippingMode(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldShippingMode, opts...).ToFunc()
+}
+
+// ByShippingFee orders the results by the shipping_fee field.
+func ByShippingFee(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldShippingFee, opts...).ToFunc()
+}
+
+// ByPhysicalStock orders the results by the physical_stock field.
+func ByPhysicalStock(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPhysicalStock, opts...).ToFunc()
 }
 
 // BySlug orders the results by the slug field.

@@ -161,7 +161,7 @@ func (s *AdminCatalogService) ListProducts(ctx context.Context, req *adminv1.Lis
 	reply := &adminv1.ListProductsReply{Products: make([]*adminv1.AdminProduct, 0, len(rows))}
 	for _, p := range rows {
 		if req.GetOptionsOnly() {
-			reply.Products = append(reply.Products, &adminv1.AdminProduct{Id: p.ID, Name: p.Name, CategoryId: p.CategoryID, PriceCents: p.Price, StockType: string(p.StockType), IsLocked: p.IsLocked, LockVersion: p.LockVersion, Status: int32(p.Status), Cover: p.Cover, UpstreamSourceId: p.UpstreamSourceID})
+			reply.Products = append(reply.Products, &adminv1.AdminProduct{Id: p.ID, Name: p.Name, CategoryId: p.CategoryID, PriceCents: p.Price, GoodsType: p.GoodsType, ProductProperty: p.ProductProperty, SalesVisible: &p.SalesVisible, TrackInventory: &p.TrackInventory, StockType: string(p.StockType), IsLocked: p.IsLocked, LockVersion: p.LockVersion, Status: int32(p.Status), Cover: p.Cover, UpstreamSourceId: p.UpstreamSourceID})
 		} else {
 			reply.Products = append(reply.Products, ToAdminPB(p))
 		}
@@ -219,6 +219,8 @@ func (s *AdminCatalogService) CreateProduct(ctx context.Context, req *adminv1.Cr
 		return nil, errors.BadRequest("catalog.INVALID_INPUT", "名称必填、价格与成本须为非负且不超上限")
 	}
 	in := port.ProductInput{
+		ProductProperty: req.ProductProperty, SalesVisible: req.SalesVisible, TrackInventory: req.TrackInventory,
+		GoodsType: req.GoodsType, ShippingMode: req.ShippingMode, ShippingFee: req.ShippingFeeCents, PhysicalStock: req.PhysicalStock, ShippingCountries: req.ShippingCountries,
 		Name: req.GetName(), CategoryID: req.GetCategoryId(),
 		Description:    sanitize.RichHTML(req.GetDescription()),
 		DescriptionSet: true,
@@ -230,6 +232,12 @@ func (s *AdminCatalogService) CreateProduct(ctx context.Context, req *adminv1.Cr
 		Sort: req.GetSort(), Status: int8(req.GetStatus()),
 		PointsRequired: req.GetPointsRequired(), PointsRequiredSet: true,
 		IsRecommend: req.GetIsRecommend(),
+	}
+	if err := s.repo.validatePhysicalProduct(ctx, nil, &in); err != nil {
+		return nil, errors.BadRequest("catalog.INVALID_INPUT", err.Error())
+	}
+	if *in.GoodsType == "physical" && req.GetDirectContent() != "" {
+		return nil, errors.BadRequest("catalog.INVALID_INPUT", "实体商品不能配置虚拟直发内容")
 	}
 	p, err := s.repo.CreateProduct(ctx, in)
 	if err != nil {
@@ -258,6 +266,8 @@ func (s *AdminCatalogService) UpdateProduct(ctx context.Context, req *adminv1.Up
 		return nil, errors.BadRequest("catalog.INVALID_INPUT", "价格与成本不得超出上限")
 	}
 	in := port.ProductInput{
+		ProductProperty: req.ProductProperty, SalesVisible: req.SalesVisible, TrackInventory: req.TrackInventory,
+		GoodsType: req.GoodsType, ShippingMode: req.ShippingMode, ShippingFee: req.ShippingFeeCents, PhysicalStock: req.PhysicalStock, ExpectedPhysicalStock: req.ExpectedPhysicalStock, ShippingCountries: req.ShippingCountries,
 		Name: req.GetName(), CategoryID: req.GetCategoryId(),
 		Description:    sanitize.RichHTML(req.GetDescription()),
 		DescriptionSet: true,
@@ -265,8 +275,8 @@ func (s *AdminCatalogService) UpdateProduct(ctx context.Context, req *adminv1.Up
 		Price: req.GetPriceCents(), FactoryPrice: req.GetFactoryPriceCents(),
 		StockType: req.GetStockType(), DeliveryMode: req.GetDeliveryMode(),
 		FulfillmentMode: req.GetFulfillmentMode(), ManualStock: req.ManualStock,
-		StockVisible: req.GetStockVisible(),
-		Sort:         req.GetSort(), Status: int8(req.GetStatus()),
+		StockVisible: req.GetStockVisible(), StockVisibleSet: req.StockVisible != nil,
+		Sort: req.GetSort(), Status: int8(req.GetStatus()),
 		PointsRequired: req.GetPointsRequired(), PointsRequiredSet: true,
 		IsRecommend: req.GetIsRecommend(), // PUT 全量语义（含 false=取消推荐）
 	}
@@ -280,7 +290,13 @@ func (s *AdminCatalogService) UpdateProduct(ctx context.Context, req *adminv1.Up
 		}
 		return nil, errors.InternalServer("catalog.GET_FAILED", "读取商品失败")
 	}
-	stockType := req.GetStockType()
+	if err := s.repo.validatePhysicalProduct(ctx, old, &in); err != nil {
+		return nil, errors.BadRequest("catalog.INVALID_INPUT", err.Error())
+	}
+	if *in.GoodsType == "physical" && req.GetDirectContent() != "" {
+		return nil, errors.BadRequest("catalog.INVALID_INPUT", "实体商品不能配置虚拟直发内容")
+	}
+	stockType := in.StockType
 	if stockType == "" {
 		stockType = string(old.StockType)
 	}
@@ -389,7 +405,12 @@ func (s *AdminCatalogService) ReorderCategories(ctx context.Context, req *adminv
 // DeleteCategory 删除分类。
 func (s *AdminCatalogService) DeleteCategory(ctx context.Context, req *adminv1.DeleteCategoryRequest) (*emptypb.Empty, error) {
 	if err := s.repo.DeleteCategory(ctx, req.GetId()); err != nil {
-		return nil, errors.BadRequest("catalog.CATEGORY_DELETE_FAILED", "删除失败（有子分类或商品）")
+		switch err.Error() {
+		case "catalog.CATEGORY_NOT_FOUND":
+			return nil, errors.NotFound("catalog.CATEGORY_NOT_FOUND", "分类不存在或已删除")
+		default:
+			return nil, errors.InternalServer("catalog.CATEGORY_DELETE_FAILED", "删除分类失败，请稍后重试")
+		}
 	}
 	return &emptypb.Empty{}, nil
 }
@@ -559,7 +580,7 @@ func (s *AdminCatalogService) CreateSku(ctx context.Context, req *adminv1.Create
 		return nil, errors.BadRequest("catalog.SKU_INVALID", "商品 ID 与规格名必填")
 	}
 	sku, err := s.repo.CreateSku(ctx, SkuInput{
-		ProductID: req.GetProductId(), Name: req.GetName(), SpecValues: req.GetSpecValues(),
+		PhysicalStock: req.PhysicalStock, ProductID: req.GetProductId(), Name: req.GetName(), SpecValues: req.GetSpecValues(),
 		PriceCents: req.GetPriceCents(), CostCents: req.GetCostCents(),
 		StockOffset: req.GetStockOffset(), UpstreamSkuID: req.GetUpstreamSkuId(), FulfillmentMode: req.GetFulfillmentMode(),
 	})
@@ -574,7 +595,7 @@ func (s *AdminCatalogService) CreateSku(ctx context.Context, req *adminv1.Create
 
 // UpdateSku 更新 SKU。
 func (s *AdminCatalogService) UpdateSku(ctx context.Context, req *adminv1.UpdateSkuRequest) (*adminv1.Sku, error) {
-	sku, err := s.repo.UpdateSku(ctx, req.GetId(), SkuInput{
+	sku, err := s.repo.UpdateSku(ctx, req.GetId(), SkuInput{PhysicalStock: req.PhysicalStock, ExpectedPhysicalStock: req.ExpectedPhysicalStock,
 		SetPrice: req.PriceCents != nil, SetCost: req.CostCents != nil, SetStockOffset: req.StockOffset != nil,
 		Name: req.GetName(), SpecValues: req.GetSpecValues(),
 		PriceCents: req.GetPriceCents(), CostCents: req.GetCostCents(),
@@ -668,7 +689,7 @@ func toMemberGroupPB(g *ent.MemberProductGroup) *adminv1.MemberGroup {
 }
 
 func toSkuPB(sku *ent.ProductSku) *adminv1.Sku {
-	return &adminv1.Sku{
+	return &adminv1.Sku{PhysicalStock: &sku.PhysicalStock,
 		Id: sku.ID, ProductId: sku.ProductID, Name: sku.Name,
 		SpecValues: sku.SpecValues, PriceCents: sku.Price, CostCents: sku.Cost,
 		StockOffset: sku.StockOffset, UpstreamSkuId: sku.UpstreamSkuID, FulfillmentMode: sku.FulfillmentMode,

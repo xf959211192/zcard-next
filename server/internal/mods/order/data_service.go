@@ -8,6 +8,7 @@ import (
 	stderrors "errors"
 	"github.com/NovaWorks/zcard-next/server/internal/data/ent/refundorder"
 	couponport "github.com/NovaWorks/zcard-next/server/internal/mods/coupon/port"
+	"github.com/NovaWorks/zcard-next/server/internal/platform/sanitize"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -26,11 +27,14 @@ import (
 	"github.com/NovaWorks/zcard-next/server/internal/data/ent/supplyconnection"
 	"github.com/NovaWorks/zcard-next/server/internal/mods/captcha"
 	"github.com/NovaWorks/zcard-next/server/internal/mods/identity"
-	"github.com/NovaWorks/zcard-next/server/internal/platform/crypto"
+	notifyport "github.com/NovaWorks/zcard-next/server/internal/mods/notify/port"
+	"github.com/NovaWorks/zcard-next/server/internal/platform/orderaccess"
 	"github.com/NovaWorks/zcard-next/server/internal/platform/tenancy"
 
 	"github.com/go-kratos/kratos/v3/errors"
 	"github.com/go-kratos/kratos/v3/transport"
+	khttp "github.com/go-kratos/kratos/v3/transport/http"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -39,9 +43,12 @@ import (
 // StoreOrderService 顾客下单服务。
 type StoreOrderService struct {
 	storefrontv1.UnimplementedStoreOrderServiceServer
-	uc      *OrderUsecase
-	captcha *captcha.Service // 图形验证码（captcha_order 场景）
+	uc             *OrderUsecase
+	captcha        *captcha.Service // 图形验证码（captcha_order 场景）
+	recoverySender notifyport.Sender
 }
+
+func (s *StoreOrderService) SetRecoverySender(sender notifyport.Sender) { s.recoverySender = sender }
 
 // NewStoreOrderService 构造。
 func NewStoreOrderService(uc *OrderUsecase, cap *captcha.Service) *StoreOrderService {
@@ -50,6 +57,12 @@ func NewStoreOrderService(uc *OrderUsecase, cap *captcha.Service) *StoreOrderSer
 
 // CreateOrder 下单。
 func (s *StoreOrderService) CreateOrder(ctx context.Context, req *storefrontv1.CreateOrderRequest) (*storefrontv1.CreateOrderReply, error) {
+	return s.createOrder(ctx, req, false)
+}
+func (s *StoreOrderService) QuoteOrder(ctx context.Context, req *storefrontv1.CreateOrderRequest) (*storefrontv1.CreateOrderReply, error) {
+	return s.createOrder(ctx, req, true)
+}
+func (s *StoreOrderService) createOrder(ctx context.Context, req *storefrontv1.CreateOrderRequest, quote bool) (*storefrontv1.CreateOrderReply, error) {
 	if len(req.GetItems()) == 0 {
 		return nil, errors.BadRequest("order.EMPTY_ITEMS", "订单项不能为空")
 	}
@@ -68,14 +81,9 @@ func (s *StoreOrderService) CreateOrder(ctx context.Context, req *storefrontv1.C
 	if claims != nil {
 		userID = claims.Subject
 	}
-	// 图形验证码（captcha_order 开启时仅校验游客——防机器人；登录用户有账号体系不挡，
-	// 前台也只对游客渲染验证码框，此前未判登录态会把登录用户全部卡死在 captcha.REQUIRED）
-	if s.captcha != nil && claims == nil {
-		if err := s.captcha.VerifyScene(ctx, captcha.SceneOrder, req.GetCaptchaId(), req.GetCaptchaCode()); err != nil {
-			return nil, err
-		}
-	}
-	res, err := s.uc.CreateOrder(ctx, CreateOrderInput{
+	input := CreateOrderInput{
+		SMSQuoteID: req.SmsQuoteId,
+		QuoteOnly:  quote, QuoteKey: req.QuoteKey, ShippingAddress: req.ShippingAddress,
 		Items: items, UserID: userID, GuestContact: req.GetGuestContact(),
 		QueryPassword: req.GetQueryPassword(), Contact: req.GetContact(),
 		CouponCode: req.GetCouponCode(), ControlAnswers: req.GetControlAnswers(),
@@ -83,36 +91,73 @@ func (s *StoreOrderService) CreateOrder(ctx context.Context, req *storefrontv1.C
 		RefCode:   req.GetRefCode(),
 		// ：Idempotency-Key 头（同 key 双击返回首单，）
 		IdempotencyKey: idempotencyKeyFromContext(ctx),
-	})
+	}
+	if replay, e := s.uc.ReplayOrder(ctx, input); e != nil {
+		return nil, mapOrderErr(e)
+	} else if replay != nil {
+		return &storefrontv1.CreateOrderReply{OrderNo: replay.OrderNo, TotalCents: replay.TotalCents, ShippingCents: replay.ShippingCents, ExpiresAt: replay.ExpiresAt.Unix(), OrderAccessToken: replay.OrderAccessToken}, nil
+	}
+	if !quote && s.captcha != nil && claims == nil {
+		if err := s.captcha.VerifyScene(ctx, captcha.SceneOrder, req.GetCaptchaId(), req.GetCaptchaCode()); err != nil {
+			return nil, err
+		}
+	}
+	res, err := s.uc.CreateOrder(ctx, input)
 	if err != nil {
 		return nil, mapOrderErr(err)
 	}
 	return &storefrontv1.CreateOrderReply{
-		OrderNo: res.OrderNo, TotalCents: res.TotalCents, ExpiresAt: res.ExpiresAt.Unix(),
+		OrderNo: res.OrderNo, TotalCents: res.TotalCents, ShippingCents: res.ShippingCents, QuoteKey: res.QuoteKey, ExpiresAt: res.ExpiresAt.Unix(), OrderAccessToken: res.OrderAccessToken,
 	}, nil
 }
 
 // GetOrder 查单（单号+密码）。
 // 取货三重门之一二（ 补全）：查询密码 或 登录态本人——登录态本人免密码。
 func (s *StoreOrderService) GetOrder(ctx context.Context, req *storefrontv1.GetOrderRequest) (*storefrontv1.GetOrderReply, error) {
+	token := req.GetOrderAccessToken()
+	if token == "" {
+		if tr, ok := transport.FromServerContext(ctx); ok {
+			token = tr.RequestHeader().Get("X-Order-Access-Token")
+		}
+	}
 	o, err := s.uc.GetByOrderNo(ctx, req.GetOrderNo())
 	if ent.IsNotFound(err) {
-		return nil, errors.NotFound("order.NOT_FOUND", "订单不存在")
+		if token != "" {
+			return nil, errors.NotFound("order.NOT_FOUND", "订单不存在或访问凭证无效")
+		}
+		return nil, orderaccess.PublicError(orderaccess.Verify(ctx, s.uc.Gate, req.GetOrderNo(), "", req.GetQueryPassword(), orderClientIP(ctx)))
 	}
 	if err != nil {
 		return nil, errors.InternalServer("order.GET_FAILED", "查询失败")
+	}
+	if o.SubsiteID != tenancy.FromContext(ctx).SubsiteID {
+		if token != "" {
+			return nil, errors.NotFound("order.NOT_FOUND", "订单不存在或访问凭证无效")
+		}
+		return nil, orderaccess.PublicError(orderaccess.Verify(ctx, s.uc.Gate, req.GetOrderNo(), "", req.GetQueryPassword(), orderClientIP(ctx)))
 	}
 	// 登录态本人：免查询密码（密码错与单号不存在对外表现一致的纪律不破坏——
 	// 非本人登录态不泄露订单存在性，仍走密码校验路径）
 	claims := identity.ClaimsFromContext(ctx)
 	isOwner := claims != nil && o.UserID != 0 && claims.Subject == o.UserID
 	if !isOwner {
-		// 查询密码校验（三重门之一：设置则必须匹配；错误与单号不存在表现一致）
-		if o.QueryPasswordHash == "" || !crypto.VerifyPassword(o.QueryPasswordHash, req.GetQueryPassword()) {
-			return nil, errors.NotFound("order.NOT_FOUND", "订单不存在")
+		if o.OrderAccessTokenHash != "" {
+			if !orderaccess.VerifyToken(o.OrderAccessTokenHash, o.SubsiteID, o.OrderNo, token) {
+				return nil, orderaccess.Required(ctx)
+			}
+		} else if token != "" {
+			if !orderaccess.VerifyToken(o.OrderAccessTokenHash, o.SubsiteID, o.OrderNo, token) {
+				return nil, errors.NotFound("order.NOT_FOUND", "订单不存在或访问凭证无效")
+			}
+		} else {
+			// 查询密码校验（三重门之一：设置则必须匹配；错误与单号不存在表现一致）
+			if err := orderaccess.Verify(ctx, s.uc.Gate, o.OrderNo, o.QueryPasswordHash, req.GetQueryPassword(), orderClientIP(ctx)); err != nil {
+				return nil, orderaccess.PublicError(err)
+			}
 		}
 	}
 	reply := &storefrontv1.GetOrderReply{
+		ShippingStatus: o.ShippingStatus, ShippingCents: o.ShippingAmount, ShippingAddress: o.ShippingAddress, CommerceVersion: o.CommerceVersion,
 		OrderNo: o.OrderNo, Status: string(o.Status), TotalCents: o.TotalAmount,
 		CreatedAt: o.CreatedAt.Unix(),
 	}
@@ -126,6 +171,10 @@ func (s *StoreOrderService) GetOrder(ctx context.Context, req *storefrontv1.GetO
 	}
 	if !o.ExpiredAt.IsZero() {
 		reply.ExpiresAt = o.ExpiredAt.Unix()
+	}
+	reply.ShipmentsJson, err = data.ShipmentsJSON(ctx, s.uc.Data, o.ID)
+	if err != nil {
+		return nil, err
 	}
 	// 子项
 	items, err := data.Client(ctx, s.uc.Data).OrderItem.Query().Where(orderitem.OrderID(o.ID)).All(ctx)
@@ -145,10 +194,13 @@ func (s *StoreOrderService) GetOrder(ctx context.Context, req *storefrontv1.GetO
 		if name == "" {
 			name = names[it.ProductID]
 		}
+		if it.DeliveryKind == "sms_activation" {
+			name, _ = sanitize.SMSPublicContent("sms_channel", name, "")
+		}
 		if it.SkuName != "" {
 			name += " / " + it.SkuName
 		}
-		reply.Items = append(reply.Items, &storefrontv1.OrderItemReply{Id: it.ID, ProductId: it.ProductID, ProductName: name, Quantity: it.Quantity, UnitPriceCents: it.UnitPrice, AmountCents: it.Amount, SkuName: it.SkuName, FulfillmentType: string(it.FulfillmentType), FulfillmentStatus: it.FulfillmentStatus, FormAnswersJson: answersJSON(it.FormAnswers)})
+		reply.Items = append(reply.Items, &storefrontv1.OrderItemReply{DeliveryKind: it.DeliveryKind, SmsProduct: it.SmsProduct, GoodsType: it.GoodsType, PaidCents: it.PaidAmount, ShippingCents: it.ShippingAmount, ShippedQuantity: it.ShippedQuantity, ReceivedQuantity: it.ReceivedQuantity, CanceledQuantity: it.CanceledQuantity, ReturnedQuantity: it.ReturnedQuantity, Id: it.ID, ProductId: it.ProductID, ProductName: name, Quantity: it.Quantity, UnitPriceCents: it.UnitPrice, AmountCents: it.Amount, SkuName: it.SkuName, FulfillmentType: string(it.FulfillmentType), FulfillmentStatus: it.FulfillmentStatus, FormAnswersJson: answersJSON(it.FormAnswers)})
 	}
 	refunds, e := data.Client(ctx, s.uc.Data).RefundOrder.Query().Where(refundorder.OrderID(o.ID), refundorder.StatusEQ(refundorder.StatusSucceeded)).All(ctx)
 	if e != nil {
@@ -177,7 +229,7 @@ func (s *StoreOrderService) ListMyOrders(ctx context.Context, req *storefrontv1.
 	}
 	reply := &storefrontv1.ListMyOrdersReply{Total: total}
 	for _, o := range rows {
-		item := &storefrontv1.MyOrderItem{
+		item := &storefrontv1.MyOrderItem{ShippingStatus: o.ShippingStatus,
 			OrderNo: o.OrderNo, Status: string(o.Status), TotalCents: o.TotalAmount,
 		}
 		names := []string{}
@@ -192,6 +244,9 @@ func (s *StoreOrderService) ListMyOrders(ctx context.Context, req *storefrontv1.
 						break
 					}
 				}
+			}
+			if line.DeliveryKind == "sms_activation" {
+				name, _ = sanitize.SMSPublicContent("sms_channel", name, "")
 			}
 			if line.SkuName != "" {
 				name += " · " + line.SkuName
@@ -224,6 +279,7 @@ func (s *StoreOrderService) ListGuestOrders(ctx context.Context, req *storefront
 	}
 	rows, err := data.Client(ctx, s.uc.Data).Order.Query().
 		Where(
+			order.SubsiteID(tenancy.FromContext(ctx).SubsiteID),
 			// 游客单：user_id NULL 或 0（历史写入两种形态并存）
 			order.Or(order.UserIDIsNil(), order.UserID(0)),
 			order.Or(order.Contact(contact), order.GuestContact(contact)),
@@ -301,6 +357,9 @@ func (s *AdminOrderService) ListOrders(ctx context.Context, req *adminv1.ListOrd
 		return nil, errors.BadRequest("order.INVALID_KEYWORD", "搜索关键词不能超过 150 个字符")
 	}
 	var filters []predicate.Order
+	if req.ShippingStatus != "" {
+		filters = append(filters, order.ShippingStatus(req.ShippingStatus))
+	}
 	if req.GetProductId() > 0 {
 		filters = append(filters, order.HasItemsWith(orderitem.ProductID(req.GetProductId())))
 	}
@@ -367,6 +426,10 @@ func (s *AdminOrderService) GetOrder(ctx context.Context, req *adminv1.GetAdminO
 	// 商品/上游联查（ 修复：订单详情展示自营/上游渠道/链接/成本——老项目同款信息区）
 	products, connections := s.loadItemUpstream(ctx, items)
 	out := toAdminOrderPB(o, items, lines, events, products, connections)
+	out.ShipmentsJson, err = data.ShipmentsJSON(ctx, s.data, o.ID)
+	if err != nil {
+		return nil, err
+	}
 	refunds, err := client.RefundOrder.Query().Where(refundorder.OrderID(o.ID), refundorder.StatusEQ(refundorder.StatusSucceeded)).All(ctx)
 	if err != nil {
 		return nil, errors.InternalServer("order.REFUND_QUERY_FAILED", "读取退款金额失败")
@@ -431,7 +494,7 @@ func (s *AdminOrderService) CancelOrder(ctx context.Context, req *adminv1.Cancel
 
 func toAdminOrderPB(o *ent.Order, items []*ent.OrderItem, lines []*ent.OrderAmountLine, events []*ent.OrderStatusEvent,
 	products map[uint64]*ent.Product, connections map[uint64]*ent.SupplyConnection) *adminv1.AdminOrder {
-	out := &adminv1.AdminOrder{
+	out := &adminv1.AdminOrder{ShippingStatus: o.ShippingStatus, ShippingCents: o.ShippingAmount, ShippingAddress: o.ShippingAddress, CommerceVersion: o.CommerceVersion,
 		Id: o.ID, OrderNo: o.OrderNo, Status: string(o.Status),
 		TotalCents: o.TotalAmount, CostCents: o.Cost,
 		UserId: o.UserID, GuestContact: o.GuestContact, Contact: o.Contact,
@@ -451,7 +514,7 @@ func toAdminOrderPB(o *ent.Order, items []*ent.OrderItem, lines []*ent.OrderAmou
 		out.ExpiryRetryAt = o.ExpiryRetryAt.Unix()
 	}
 	for _, it := range items {
-		pb := &adminv1.AdminOrderItem{
+		pb := &adminv1.AdminOrderItem{InventoryTracked: proto.Bool(it.InventoryTracked), GoodsType: it.GoodsType, PaidCents: it.PaidAmount, ShippingCents: it.ShippingAmount, RefundedCents: it.RefundedAmount, RefundedShippingCents: it.RefundedShipping, ShippedQuantity: it.ShippedQuantity, ReceivedQuantity: it.ReceivedQuantity, CanceledQuantity: it.CanceledQuantity, ReturnedQuantity: it.ReturnedQuantity,
 			FormAnswersJson: answersJSON(it.FormAnswers), AssignedAdminId: it.AssignedAdminID,
 			ProductId: it.ProductID, SkuId: it.SkuID, Quantity: it.Quantity,
 			UnitPriceCents: it.UnitPrice, AmountCents: it.Amount,
@@ -553,3 +616,10 @@ func searchString(s, sub string) bool {
 }
 
 func answersJSON(v []map[string]string) string { b, _ := json.Marshal(v); return string(b) }
+
+func orderClientIP(ctx context.Context) string {
+	if r, ok := khttp.RequestFromServerContext(ctx); ok {
+		return r.RemoteAddr
+	}
+	return ""
+}

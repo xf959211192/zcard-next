@@ -450,7 +450,7 @@ var (
 		{Name: "id", Type: field.TypeUint64, Increment: true},
 		{Name: "email", Type: field.TypeString, Size: 255},
 		{Name: "user_id", Type: field.TypeUint64, Nullable: true},
-		{Name: "purpose", Type: field.TypeEnum, Enums: []string{"register", "phone_register", "reset"}},
+		{Name: "purpose", Type: field.TypeEnum, Enums: []string{"register", "phone_register", "reset", "order_access"}},
 		{Name: "code_hash", Type: field.TypeString, Size: 128},
 		{Name: "expires_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)"}},
 		{Name: "verified_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"mysql": "datetime(3)"}},
@@ -1079,7 +1079,14 @@ var (
 		{Name: "user_id", Type: field.TypeUint64, Nullable: true},
 		{Name: "guest_contact", Type: field.TypeString, Nullable: true, Size: 150},
 		{Name: "query_password_hash", Type: field.TypeString, Nullable: true, Size: 128},
+		{Name: "order_access_token_hash", Type: field.TypeString, Size: 64, Default: ""},
+		{Name: "order_access_token_secret", Type: field.TypeBytes, Nullable: true},
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"pending_payment", "paid", "fulfilling", "partially_delivered", "delivered", "completed", "canceled", "expired", "refund_pending", "refunded"}, Default: "pending_payment"},
+		{Name: "commerce_version", Type: field.TypeInt32, Default: 0},
+		{Name: "shipping_amount", Type: field.TypeInt64, Default: 0},
+		{Name: "shipping_status", Type: field.TypeString, Default: "none"},
+		{Name: "shipping_address", Type: field.TypeJSON, Nullable: true},
+		{Name: "request_hash", Type: field.TypeString, Default: ""},
 		{Name: "total_amount", Type: field.TypeInt64, Default: 0},
 		{Name: "cost", Type: field.TypeInt64, Default: 0},
 		{Name: "base_currency", Type: field.TypeString, Nullable: true, Size: 3},
@@ -1121,32 +1128,32 @@ var (
 			{
 				Name:    "order_user_id_status",
 				Unique:  false,
-				Columns: []*schema.Column{OrdersColumns[9], OrdersColumns[12]},
+				Columns: []*schema.Column{OrdersColumns[9], OrdersColumns[14]},
 			},
 			{
 				Name:    "order_status_expired_at",
 				Unique:  false,
-				Columns: []*schema.Column{OrdersColumns[12], OrdersColumns[34]},
+				Columns: []*schema.Column{OrdersColumns[14], OrdersColumns[41]},
 			},
 			{
 				Name:    "order_parent_id",
 				Unique:  false,
-				Columns: []*schema.Column{OrdersColumns[24]},
+				Columns: []*schema.Column{OrdersColumns[31]},
 			},
 			{
 				Name:    "order_escrow_id",
 				Unique:  false,
-				Columns: []*schema.Column{OrdersColumns[25]},
+				Columns: []*schema.Column{OrdersColumns[32]},
 			},
 			{
 				Name:    "order_invite_l1",
 				Unique:  false,
-				Columns: []*schema.Column{OrdersColumns[26]},
+				Columns: []*schema.Column{OrdersColumns[33]},
 			},
 			{
 				Name:    "order_risk_ip_user_id_status",
 				Unique:  false,
-				Columns: []*schema.Column{OrdersColumns[22], OrdersColumns[9], OrdersColumns[12]},
+				Columns: []*schema.Column{OrdersColumns[29], OrdersColumns[9], OrdersColumns[14]},
 			},
 		},
 	}
@@ -1154,7 +1161,7 @@ var (
 	OrderAmountLinesColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUint64, Increment: true},
 		{Name: "item_id", Type: field.TypeUint64, Nullable: true},
-		{Name: "type", Type: field.TypeEnum, Enums: []string{"base_price", "sku_adjust", "member_discount", "group_discount", "promo_discount", "coupon_discount", "points_discount", "subsite_markup", "fee", "tax", "rounding_adjust"}},
+		{Name: "type", Type: field.TypeEnum, Enums: []string{"base_price", "sku_adjust", "member_discount", "group_discount", "promo_discount", "coupon_discount", "points_discount", "subsite_markup", "fee", "tax", "rounding_adjust", "shipping"}},
 		{Name: "amount", Type: field.TypeInt64},
 		{Name: "source_type", Type: field.TypeString, Nullable: true, Size: 32},
 		{Name: "source_id", Type: field.TypeUint64, Nullable: true},
@@ -1242,6 +1249,9 @@ var (
 		{Name: "product_id", Type: field.TypeUint64},
 		{Name: "sku_id", Type: field.TypeUint64, Nullable: true},
 		{Name: "product_name", Type: field.TypeString, Default: ""},
+		{Name: "delivery_kind", Type: field.TypeString, Default: "card"},
+		{Name: "sms_product", Type: field.TypeJSON, Nullable: true},
+		{Name: "sms_purchase_snapshot", Type: field.TypeString, Nullable: true, Size: 2147483647},
 		{Name: "form_answers", Type: field.TypeJSON, Nullable: true},
 		{Name: "assigned_admin_id", Type: field.TypeUint64, Default: 0},
 		{Name: "sku_name", Type: field.TypeString, Nullable: true, Size: 100},
@@ -1249,7 +1259,17 @@ var (
 		{Name: "quantity", Type: field.TypeInt32},
 		{Name: "amount", Type: field.TypeInt64},
 		{Name: "cost", Type: field.TypeInt64, Default: 0},
-		{Name: "fulfillment_type", Type: field.TypeEnum, Enums: []string{"auto", "manual", "upstream", "reuse"}},
+		{Name: "goods_type", Type: field.TypeString, Default: "virtual"},
+		{Name: "inventory_tracked", Type: field.TypeBool, Default: true},
+		{Name: "paid_amount", Type: field.TypeInt64, Default: 0},
+		{Name: "shipping_amount", Type: field.TypeInt64, Default: 0},
+		{Name: "refunded_amount", Type: field.TypeInt64, Default: 0},
+		{Name: "refunded_shipping", Type: field.TypeInt64, Default: 0},
+		{Name: "canceled_quantity", Type: field.TypeInt32, Default: 0},
+		{Name: "shipped_quantity", Type: field.TypeInt32, Default: 0},
+		{Name: "received_quantity", Type: field.TypeInt32, Default: 0},
+		{Name: "returned_quantity", Type: field.TypeInt32, Default: 0},
+		{Name: "fulfillment_type", Type: field.TypeEnum, Enums: []string{"auto", "manual", "upstream", "reuse", "shipping"}},
 		{Name: "delivery_source_id", Type: field.TypeUint64, Nullable: true},
 		{Name: "fulfillment_status", Type: field.TypeString, Size: 20, Default: "pending"},
 		{Name: "commission_snapshot", Type: field.TypeJSON, Nullable: true},
@@ -1264,7 +1284,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "order_items_orders_items",
-				Columns:    []*schema.Column{OrderItemsColumns[19]},
+				Columns:    []*schema.Column{OrderItemsColumns[32]},
 				RefColumns: []*schema.Column{OrdersColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -1273,12 +1293,12 @@ var (
 			{
 				Name:    "orderitem_delivery_source_id",
 				Unique:  false,
-				Columns: []*schema.Column{OrderItemsColumns[15]},
+				Columns: []*schema.Column{OrderItemsColumns[28]},
 			},
 			{
 				Name:    "orderitem_order_id",
 				Unique:  false,
-				Columns: []*schema.Column{OrderItemsColumns[19]},
+				Columns: []*schema.Column{OrderItemsColumns[32]},
 			},
 			{
 				Name:    "orderitem_product_id",
@@ -1483,6 +1503,69 @@ var (
 			},
 		},
 	}
+	// PhysicalReturnReceiptsColumns holds the columns for the "physical_return_receipts" table.
+	PhysicalReturnReceiptsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUint64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)"}},
+		{Name: "subsite_id", Type: field.TypeUint64, Default: 0},
+		{Name: "order_id", Type: field.TypeUint64},
+		{Name: "item_id", Type: field.TypeUint64},
+		{Name: "quantity", Type: field.TypeInt32},
+		{Name: "request_key", Type: field.TypeString, Unique: true, Size: 128},
+		{Name: "request_hash", Type: field.TypeString, Size: 64},
+		{Name: "reason", Type: field.TypeString, Size: 120},
+		{Name: "inventory_tracked", Type: field.TypeBool},
+	}
+	// PhysicalReturnReceiptsTable holds the schema information for the "physical_return_receipts" table.
+	PhysicalReturnReceiptsTable = &schema.Table{
+		Name:       "physical_return_receipts",
+		Columns:    PhysicalReturnReceiptsColumns,
+		PrimaryKey: []*schema.Column{PhysicalReturnReceiptsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "physicalreturnreceipt_order_id",
+				Unique:  false,
+				Columns: []*schema.Column{PhysicalReturnReceiptsColumns[4]},
+			},
+			{
+				Name:    "physicalreturnreceipt_item_id",
+				Unique:  false,
+				Columns: []*schema.Column{PhysicalReturnReceiptsColumns[5]},
+			},
+		},
+	}
+	// PhysicalStockMovementsColumns holds the columns for the "physical_stock_movements" table.
+	PhysicalStockMovementsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUint64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)"}},
+		{Name: "subsite_id", Type: field.TypeUint64, Default: 0},
+		{Name: "product_id", Type: field.TypeUint64},
+		{Name: "sku_id", Type: field.TypeUint64, Default: 0},
+		{Name: "order_id", Type: field.TypeUint64, Default: 0},
+		{Name: "delta", Type: field.TypeInt64},
+		{Name: "reference", Type: field.TypeString, Unique: true, Size: 180},
+		{Name: "reason", Type: field.TypeString, Size: 255},
+	}
+	// PhysicalStockMovementsTable holds the schema information for the "physical_stock_movements" table.
+	PhysicalStockMovementsTable = &schema.Table{
+		Name:       "physical_stock_movements",
+		Columns:    PhysicalStockMovementsColumns,
+		PrimaryKey: []*schema.Column{PhysicalStockMovementsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "physicalstockmovement_product_id_sku_id",
+				Unique:  false,
+				Columns: []*schema.Column{PhysicalStockMovementsColumns[4], PhysicalStockMovementsColumns[5]},
+			},
+			{
+				Name:    "physicalstockmovement_order_id",
+				Unique:  false,
+				Columns: []*schema.Column{PhysicalStockMovementsColumns[6]},
+			},
+		},
+	}
 	// PointAccountsColumns holds the columns for the "point_accounts" table.
 	PointAccountsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUint64, Increment: true},
@@ -1665,9 +1748,20 @@ var (
 		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)"}},
 		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)"}},
 		{Name: "subsite_id", Type: field.TypeUint64, Default: 0},
+		{Name: "product_kind", Type: field.TypeString, Default: "standard"},
+		{Name: "delivery_kind", Type: field.TypeString, Default: "card"},
+		{Name: "sms_product", Type: field.TypeJSON, Nullable: true},
 		{Name: "category_id", Type: field.TypeUint64, Nullable: true},
 		{Name: "category_protected", Type: field.TypeBool, Default: false},
 		{Name: "name", Type: field.TypeString, Size: 1024},
+		{Name: "goods_type", Type: field.TypeString, Default: "virtual"},
+		{Name: "product_property", Type: field.TypeString, Size: 16, Default: ""},
+		{Name: "track_inventory", Type: field.TypeBool, Default: true},
+		{Name: "sales_visible", Type: field.TypeBool, Default: true},
+		{Name: "shipping_mode", Type: field.TypeString, Default: "free"},
+		{Name: "shipping_fee", Type: field.TypeInt64, Default: 0},
+		{Name: "shipping_countries", Type: field.TypeJSON, Nullable: true},
+		{Name: "physical_stock", Type: field.TypeInt64, Default: 0},
 		{Name: "slug", Type: field.TypeString, Size: 150},
 		{Name: "description", Type: field.TypeString, Nullable: true, Size: 2147483647},
 		{Name: "cover", Type: field.TypeString, Nullable: true, Size: 255},
@@ -1716,27 +1810,27 @@ var (
 			{
 				Name:    "product_subsite_id_slug",
 				Unique:  true,
-				Columns: []*schema.Column{ProductsColumns[3], ProductsColumns[7]},
+				Columns: []*schema.Column{ProductsColumns[3], ProductsColumns[18]},
 			},
 			{
 				Name:    "product_subsite_id_category_id",
 				Unique:  false,
-				Columns: []*schema.Column{ProductsColumns[3], ProductsColumns[4]},
+				Columns: []*schema.Column{ProductsColumns[3], ProductsColumns[7]},
 			},
 			{
 				Name:    "product_subsite_id_status",
 				Unique:  false,
-				Columns: []*schema.Column{ProductsColumns[3], ProductsColumns[28]},
+				Columns: []*schema.Column{ProductsColumns[3], ProductsColumns[39]},
 			},
 			{
 				Name:    "product_upstream_source_id",
 				Unique:  false,
-				Columns: []*schema.Column{ProductsColumns[29]},
+				Columns: []*schema.Column{ProductsColumns[40]},
 			},
 			{
 				Name:    "product_subsite_id_upstream_source_id_upstream_product_code",
 				Unique:  true,
-				Columns: []*schema.Column{ProductsColumns[3], ProductsColumns[29], ProductsColumns[30]},
+				Columns: []*schema.Column{ProductsColumns[3], ProductsColumns[40], ProductsColumns[41]},
 			},
 		},
 	}
@@ -1846,6 +1940,7 @@ var (
 		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)"}},
 		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)"}},
 		{Name: "subsite_id", Type: field.TypeUint64, Default: 0},
+		{Name: "physical_stock", Type: field.TypeInt64, Default: 0},
 		{Name: "name", Type: field.TypeString, Size: 100},
 		{Name: "spec_values", Type: field.TypeJSON},
 		{Name: "price", Type: field.TypeInt64, Nullable: true},
@@ -1863,7 +1958,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "product_skus_products_skus",
-				Columns:    []*schema.Column{ProductSkusColumns[11]},
+				Columns:    []*schema.Column{ProductSkusColumns[12]},
 				RefColumns: []*schema.Column{ProductsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -1872,12 +1967,12 @@ var (
 			{
 				Name:    "productsku_product_id",
 				Unique:  false,
-				Columns: []*schema.Column{ProductSkusColumns[11]},
+				Columns: []*schema.Column{ProductSkusColumns[12]},
 			},
 			{
 				Name:    "productsku_product_id_name",
 				Unique:  true,
-				Columns: []*schema.Column{ProductSkusColumns[11], ProductSkusColumns[4]},
+				Columns: []*schema.Column{ProductSkusColumns[12], ProductSkusColumns[5]},
 			},
 		},
 	}
@@ -1987,6 +2082,10 @@ var (
 		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)"}},
 		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)"}},
 		{Name: "amount", Type: field.TypeInt64},
+		{Name: "item_allocations", Type: field.TypeJSON, Nullable: true},
+		{Name: "request_key", Type: field.TypeString, Unique: true, Nullable: true, Size: 64},
+		{Name: "request_hash", Type: field.TypeString, Nullable: true, Size: 64},
+		{Name: "shipping_amount", Type: field.TypeInt64, Default: 0},
 		{Name: "fee_amount", Type: field.TypeInt64, Default: 0},
 		{Name: "channel", Type: field.TypeEnum, Enums: []string{"gateway", "wallet", "upstream"}},
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"created", "processing", "succeeded", "failed"}, Default: "created"},
@@ -2003,7 +2102,7 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "refund_orders_orders_refunds",
-				Columns:    []*schema.Column{RefundOrdersColumns[10]},
+				Columns:    []*schema.Column{RefundOrdersColumns[14]},
 				RefColumns: []*schema.Column{OrdersColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -2012,12 +2111,12 @@ var (
 			{
 				Name:    "refundorder_order_id",
 				Unique:  false,
-				Columns: []*schema.Column{RefundOrdersColumns[10]},
+				Columns: []*schema.Column{RefundOrdersColumns[14]},
 			},
 			{
 				Name:    "refundorder_status",
 				Unique:  false,
-				Columns: []*schema.Column{RefundOrdersColumns[6]},
+				Columns: []*schema.Column{RefundOrdersColumns[10]},
 			},
 		},
 	}
@@ -2200,6 +2299,7 @@ var (
 	RiskLockKeysColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeUint64, Increment: true},
 		{Name: "key_hash", Type: field.TypeString, Size: 128},
+		{Name: "failure_count", Type: field.TypeInt, Default: 5},
 		{Name: "expires_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)"}},
 		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)"}},
 	}
@@ -2217,7 +2317,7 @@ var (
 			{
 				Name:    "risklockkey_expires_at",
 				Unique:  false,
-				Columns: []*schema.Column{RiskLockKeysColumns[2]},
+				Columns: []*schema.Column{RiskLockKeysColumns[3]},
 			},
 		},
 	}
@@ -2239,6 +2339,146 @@ var (
 				Name:    "rolepermission_role_id_permission_code",
 				Unique:  true,
 				Columns: []*schema.Column{RolePermissionsColumns[3], RolePermissionsColumns[4]},
+			},
+		},
+	}
+	// SmsIntentsColumns holds the columns for the "sms_intents" table.
+	SmsIntentsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUint64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)"}},
+		{Name: "subsite_id", Type: field.TypeUint64, Default: 0},
+		{Name: "order_id", Type: field.TypeUint64},
+		{Name: "order_item_id", Type: field.TypeUint64},
+		{Name: "user_id", Type: field.TypeUint64},
+		{Name: "connection_id", Type: field.TypeUint64},
+		{Name: "connection_identity", Type: field.TypeString},
+		{Name: "request_no", Type: field.TypeString, Size: 64},
+		{Name: "request_json", Type: field.TypeString, Size: 2147483647},
+		{Name: "request_hash", Type: field.TypeString, Size: 64},
+		{Name: "upstream_order_id", Type: field.TypeString, Nullable: true},
+		{Name: "phase", Type: field.TypeString, Default: "purchase"},
+		{Name: "state", Type: field.TypeString, Default: "allocating"},
+		{Name: "session_id", Type: field.TypeString, Default: ""},
+		{Name: "version", Type: field.TypeInt64, Default: 0},
+		{Name: "sms_revision", Type: field.TypeInt64, Default: 0},
+		{Name: "snapshot_cipher", Type: field.TypeBytes, Nullable: true},
+		{Name: "received", Type: field.TypeBool, Default: false},
+		{Name: "can_cancel", Type: field.TypeBool, Default: false},
+		{Name: "can_finish", Type: field.TypeBool, Default: false},
+		{Name: "charged_amount", Type: field.TypeInt64, Default: 0},
+		{Name: "settlement_state", Type: field.TypeString, Default: ""},
+		{Name: "refunded_amount", Type: field.TypeInt64, Default: 0},
+		{Name: "refund_reference", Type: field.TypeString, Default: ""},
+		{Name: "rejected_receipt", Type: field.TypeBool, Default: false},
+		{Name: "retail_refund_state", Type: field.TypeString, Default: "none"},
+		{Name: "refund_id", Type: field.TypeUint64, Default: 0},
+		{Name: "next_run_at", Type: field.TypeInt64, Default: 0},
+		{Name: "lease_until", Type: field.TypeInt64, Default: 0},
+		{Name: "lease_token", Type: field.TypeString, Default: ""},
+		{Name: "attempts", Type: field.TypeInt, Default: 0},
+		{Name: "last_error", Type: field.TypeString, Default: ""},
+	}
+	// SmsIntentsTable holds the schema information for the "sms_intents" table.
+	SmsIntentsTable = &schema.Table{
+		Name:       "sms_intents",
+		Columns:    SmsIntentsColumns,
+		PrimaryKey: []*schema.Column{SmsIntentsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "smsintent_order_item_id",
+				Unique:  true,
+				Columns: []*schema.Column{SmsIntentsColumns[5]},
+			},
+			{
+				Name:    "smsintent_request_no",
+				Unique:  true,
+				Columns: []*schema.Column{SmsIntentsColumns[9]},
+			},
+			{
+				Name:    "smsintent_connection_id_upstream_order_id",
+				Unique:  true,
+				Columns: []*schema.Column{SmsIntentsColumns[7], SmsIntentsColumns[12]},
+			},
+			{
+				Name:    "smsintent_phase_next_run_at_lease_until",
+				Unique:  false,
+				Columns: []*schema.Column{SmsIntentsColumns[13], SmsIntentsColumns[29], SmsIntentsColumns[30]},
+			},
+			{
+				Name:    "smsintent_subsite_id_user_id_order_id",
+				Unique:  false,
+				Columns: []*schema.Column{SmsIntentsColumns[3], SmsIntentsColumns[6], SmsIntentsColumns[4]},
+			},
+		},
+	}
+	// SmsOperationsColumns holds the columns for the "sms_operations" table.
+	SmsOperationsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUint64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)"}},
+		{Name: "subsite_id", Type: field.TypeUint64, Default: 0},
+		{Name: "intent_id", Type: field.TypeUint64},
+		{Name: "operation_id", Type: field.TypeString, Size: 64},
+		{Name: "action", Type: field.TypeString},
+		{Name: "status", Type: field.TypeString, Default: "pending"},
+		{Name: "error_code", Type: field.TypeString, Default: ""},
+		{Name: "attempts", Type: field.TypeInt, Default: 0},
+	}
+	// SmsOperationsTable holds the schema information for the "sms_operations" table.
+	SmsOperationsTable = &schema.Table{
+		Name:       "sms_operations",
+		Columns:    SmsOperationsColumns,
+		PrimaryKey: []*schema.Column{SmsOperationsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "smsoperation_operation_id",
+				Unique:  true,
+				Columns: []*schema.Column{SmsOperationsColumns[5]},
+			},
+			{
+				Name:    "smsoperation_intent_id_status",
+				Unique:  false,
+				Columns: []*schema.Column{SmsOperationsColumns[4], SmsOperationsColumns[7]},
+			},
+		},
+	}
+	// SmsRetailQuotesColumns holds the columns for the "sms_retail_quotes" table.
+	SmsRetailQuotesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Size: 64},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)"}},
+		{Name: "subsite_id", Type: field.TypeUint64, Default: 0},
+		{Name: "user_id", Type: field.TypeUint64},
+		{Name: "product_id", Type: field.TypeUint64},
+		{Name: "connection_id", Type: field.TypeUint64},
+		{Name: "connection_identity", Type: field.TypeString},
+		{Name: "pricing_revision", Type: field.TypeString},
+		{Name: "product_revision", Type: field.TypeInt64},
+		{Name: "upstream_quote_id", Type: field.TypeString, Size: 64},
+		{Name: "upstream_product_id", Type: field.TypeString},
+		{Name: "cost_cents", Type: field.TypeInt64},
+		{Name: "amount_cents", Type: field.TypeInt64},
+		{Name: "expires_at", Type: field.TypeInt64},
+		{Name: "offer_name", Type: field.TypeString},
+		{Name: "selection", Type: field.TypeJSON, Nullable: true},
+		{Name: "consumed_by", Type: field.TypeString, Default: ""},
+	}
+	// SmsRetailQuotesTable holds the schema information for the "sms_retail_quotes" table.
+	SmsRetailQuotesTable = &schema.Table{
+		Name:       "sms_retail_quotes",
+		Columns:    SmsRetailQuotesColumns,
+		PrimaryKey: []*schema.Column{SmsRetailQuotesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "smsretailquote_subsite_id_user_id_product_id",
+				Unique:  false,
+				Columns: []*schema.Column{SmsRetailQuotesColumns[3], SmsRetailQuotesColumns[4], SmsRetailQuotesColumns[5]},
+			},
+			{
+				Name:    "smsretailquote_expires_at",
+				Unique:  false,
+				Columns: []*schema.Column{SmsRetailQuotesColumns[14]},
 			},
 		},
 	}
@@ -2327,6 +2567,40 @@ var (
 				Name:    "setting_group_key",
 				Unique:  true,
 				Columns: []*schema.Column{SettingsColumns[3], SettingsColumns[4]},
+			},
+		},
+	}
+	// ShipmentsColumns holds the columns for the "shipments" table.
+	ShipmentsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeUint64, Increment: true},
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)"}},
+		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"mysql": "datetime(3)"}},
+		{Name: "subsite_id", Type: field.TypeUint64, Default: 0},
+		{Name: "order_id", Type: field.TypeUint64},
+		{Name: "carrier", Type: field.TypeString, Size: 100},
+		{Name: "tracking_no", Type: field.TypeString, Size: 100},
+		{Name: "items", Type: field.TypeJSON},
+		{Name: "address", Type: field.TypeJSON},
+		{Name: "status", Type: field.TypeString, Default: "shipped"},
+		{Name: "admin_id", Type: field.TypeUint64},
+		{Name: "request_key", Type: field.TypeString, Unique: true, Size: 128},
+		{Name: "received_at", Type: field.TypeInt64, Default: 0},
+	}
+	// ShipmentsTable holds the schema information for the "shipments" table.
+	ShipmentsTable = &schema.Table{
+		Name:       "shipments",
+		Columns:    ShipmentsColumns,
+		PrimaryKey: []*schema.Column{ShipmentsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "shipment_order_id",
+				Unique:  false,
+				Columns: []*schema.Column{ShipmentsColumns[4]},
+			},
+			{
+				Name:    "shipment_subsite_id_status",
+				Unique:  false,
+				Columns: []*schema.Column{ShipmentsColumns[3], ShipmentsColumns[9]},
 			},
 		},
 	}
@@ -2494,6 +2768,8 @@ var (
 		{Name: "sync_task_id", Type: field.TypeUint64, Default: 0},
 		{Name: "low_stock_scanned_at", Type: field.TypeInt64, Default: 0},
 		{Name: "low_stock_message", Type: field.TypeString, Default: ""},
+		{Name: "sms_lease_token", Type: field.TypeString, Default: ""},
+		{Name: "sms_lease_until", Type: field.TypeInt64, Default: 0},
 		{Name: "sync_lease_token", Type: field.TypeString, Default: ""},
 		{Name: "sync_lease_until", Type: field.TypeInt64, Default: 0},
 		{Name: "callback_url", Type: field.TypeString, Nullable: true, Size: 500},
@@ -2531,7 +2807,7 @@ var (
 			{
 				Name:    "supplyconnection_last_synced_at",
 				Unique:  false,
-				Columns: []*schema.Column{SupplyConnectionsColumns[25]},
+				Columns: []*schema.Column{SupplyConnectionsColumns[27]},
 			},
 		},
 	}
@@ -3096,6 +3372,8 @@ var (
 		PageViewsTable,
 		PaymentsTable,
 		PaymentChannelsTable,
+		PhysicalReturnReceiptsTable,
+		PhysicalStockMovementsTable,
 		PointAccountsTable,
 		PointTransactionsTable,
 		PostsTable,
@@ -3122,9 +3400,13 @@ var (
 		ReviewsTable,
 		RiskLockKeysTable,
 		RolePermissionsTable,
+		SmsIntentsTable,
+		SmsOperationsTable,
+		SmsRetailQuotesTable,
 		SecurityAuditLogsTable,
 		SessionsTable,
 		SettingsTable,
+		ShipmentsTable,
 		StockAlertsTable,
 		SupplierAccountsTable,
 		SupplierLedgerEntriesTable,
