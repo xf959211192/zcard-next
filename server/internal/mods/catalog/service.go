@@ -25,8 +25,7 @@ import (
 
 // StoreCatalogService 前台目录服务（实现 storefrontv1.StoreCatalogService）。
 type StoreCatalogService struct {
-	stockLookup port.StockLookup
-	flash       couponport.FlashReader
+	flash couponport.FlashReader
 	storefrontv1.UnimplementedStoreCatalogServiceServer
 	uc *CatalogUsecase
 	// pricer 分站定价（：listing 与 checkout 共用同一 ResolveUnitPrice——1.x 铁律；
@@ -184,6 +183,7 @@ func (s *StoreCatalogService) GetProduct(ctx context.Context, req *storefrontv1.
 			p.Price = sp
 		}
 	}
+	// 库存快照已按实际发货来源计算并处理上游刷新，避免历史关联覆盖本地库存。
 	snapshots, _ := s.uc.repo.StockSnapshotBatch(ctx, []uint64{p.ID})
 	snapshot := snapshots[p.ID]
 	out := toStorefrontProduct(p, map[uint64]int64{p.ID: snapshot.Available}, 0)
@@ -197,20 +197,6 @@ func (s *StoreCatalogService) GetProduct(ctx context.Context, req *storefrontv1.
 		return nil, errors.InternalServer("catalog.FLASH_FAILED", "读取活动价格失败，请重试")
 	}
 	out.FlashSale = toFlashOffer(offers[couponport.FlashKey{ProductID: p.ID}])
-	if p.ProductKind != "sms_channel" && p.UpstreamSourceID != 0 && s.stockLookup != nil {
-		n, err := s.stockLookup.DisplayStock(ctx, p.UpstreamSourceID, p.UpstreamProductCode)
-		if err != nil || n < -1 {
-			out.Stock = -2
-			out.StockStatus = "unknown"
-			if snapshot.Quantity >= -1 && !snapshot.CheckedAt.IsZero() {
-				out.StockStatus = "stale"
-			}
-		} else {
-			out.Stock = int64(n)
-			out.StockStatus = "current"
-			out.StockReference = int64(n)
-		}
-	}
 	controls, err := s.uc.ListControls(ctx, req.GetId())
 	if err != nil {
 		return nil, errors.InternalServer("catalog.CONTROL_FAILED", "读取控件失败")
@@ -293,7 +279,6 @@ func toStorefrontProduct(p *port.Product, stocks map[uint64]int64, soldCount int
 }
 
 func (s *StoreCatalogService) SetStockLookup(lookup port.StockLookup) {
-	s.stockLookup = lookup
 	// Admin and storefront share this repository; both lists refresh stale stock.
 	if repo, ok := s.uc.repo.(interface{ SetStockLookup(port.StockLookup) }); ok {
 		repo.SetStockLookup(lookup)
