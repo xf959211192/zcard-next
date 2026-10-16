@@ -243,18 +243,17 @@ func looksLikeJSON(body []byte) bool {
 }
 
 // parseErrorPayload 解析上游统一错误体 {error_code, error_message}
-// 同时保留代理协议 {code, msg} 的字符串错误码；数字 code 仍按原规则处理。
+// （zcard/dujiao 口径；acg-faka 为 {code, msg}，见 acgfaka.go 单独处理）。
 func parseErrorPayload(body []byte) (code, msg string) {
 	if len(body) == 0 {
 		return "", ""
 	}
 	var payload struct {
-		ErrorCode    string          `json:"error_code"`
-		ErrorMessage string          `json:"error_message"`
-		Code         json.RawMessage `json:"code"`
-		Msg          string          `json:"msg"`
-		Reason       string          `json:"reason"`
-		Message      string          `json:"message"`
+		ErrorCode    string `json:"error_code"`
+		ErrorMessage string `json:"error_message"`
+		Msg          string `json:"msg"`
+		Reason       string `json:"reason"`
+		Message      string `json:"message"`
 	}
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return "", ""
@@ -264,14 +263,6 @@ func parseErrorPayload(body []byte) (code, msg string) {
 	}
 	if payload.Reason != "" {
 		return payload.Reason, payload.Message
-	}
-	var protocolCode string
-	if json.Unmarshal(payload.Code, &protocolCode) == nil && protocolCode != "" {
-		message := payload.Msg
-		if message == "" {
-			message = payload.Message
-		}
-		return protocolCode, message
 	}
 	if payload.Msg != "" {
 		return "", payload.Msg
